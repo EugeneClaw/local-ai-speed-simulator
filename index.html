@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
+<meta name="color-scheme" content="dark light">
+<title>Local AI Speed Planner — how fast would AI run on your own hardware?</title>
+<style>
+:root{
+  --bg:#0c0d11; --bg2:#101218; --panel:#14161d; --panel2:#191c25; --panel3:#1f2330;
+  --line:rgba(255,255,255,.075); --line2:rgba(255,255,255,.16);
+  --tx:#eceae3; --tx2:#a3a099; --tx3:#6d6b64;
+  --acc:#ffb224; --acc-soft:rgba(255,178,36,.13); --acc-line:rgba(255,178,36,.45);
+  --good:#3ecf8e; --good-soft:rgba(62,207,142,.12);
+  --warn:#f5b83d; --warn-soft:rgba(245,184,61,.12);
+  --bad:#f26d6d; --bad-soft:rgba(242,109,109,.12);
+  --info:#5eb1ef; --info-soft:rgba(94,177,239,.12);
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --r:14px; --glow:radial-gradient(900px 480px at 50% -180px, rgba(255,178,36,.075), transparent 70%);
+}
+[data-theme="light"]{
+  --bg:#f4f2ec; --bg2:#eeece4; --panel:#fffefb; --panel2:#f7f5ee; --panel3:#efede4;
+  --line:rgba(20,18,12,.1); --line2:rgba(20,18,12,.22);
+  --tx:#1c1a16; --tx2:#5d5a52; --tx3:#8f8c82;
+  --acc:#b96f00; --acc-soft:rgba(185,111,0,.1); --acc-line:rgba(185,111,0,.4);
+  --good:#0f8a58; --good-soft:rgba(15,138,88,.1);
+  --warn:#a06a00; --warn-soft:rgba(160,106,0,.1);
+  --bad:#c23a3a; --bad-soft:rgba(194,58,58,.09);
+  --info:#1c6fb8; --info-soft:rgba(28,111,184,.1);
+  --glow:radial-gradient(900px 480px at 50% -180px, rgba(185,111,0,.07), transparent 70%);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;background:var(--glow);pointer-events:none;z-index:0}
+main,header,footer{position:relative;z-index:1}
+::selection{background:var(--acc);color:#111}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit}
+.def{border-bottom:1px dotted var(--tx3);cursor:help}
+.mono{font-family:var(--mono)}
+
+/* ---------- top bar ---------- */
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:18px;padding:12px 22px;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;letter-spacing:.18em;font-weight:700;white-space:nowrap}
+.brand svg{flex:none}
+.brand small{color:var(--tx3);letter-spacing:.12em;font-weight:400}
+.tabs{display:flex;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:3px;margin-left:auto}
+.tab-btn{border:0;background:transparent;color:var(--tx2);font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding:7px 16px;border-radius:99px;transition:color .15s,background .15s}
+.tab-btn:hover{color:var(--tx)}
+.tab-btn.on{background:var(--acc);color:#161207;font-weight:700}
+.actions{display:flex;gap:8px;align-items:center}
+.icon-btn{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);color:var(--tx2);border-radius:99px;padding:7px 13px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;transition:border-color .15s,color .15s}
+.icon-btn:hover{border-color:var(--acc-line);color:var(--tx)}
+.icon-btn svg{width:14px;height:14px}
+
+/* ---------- layout ---------- */
+.wrap{max-width:1240px;margin:0 auto;padding:28px 22px 80px}
+.intro{max-width:760px;margin:6px 0 30px}
+.intro h1{font-size:clamp(26px,4vw,40px);line-height:1.12;font-weight:700;letter-spacing:-.02em;margin-bottom:12px}
+.intro h1 em{font-style:normal;color:var(--acc)}
+.intro p{color:var(--tx2);max-width:640px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:26px;align-items:start}
+
+/* ---------- steps ---------- */
+.step{margin-bottom:34px}
+.step-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.step-num{font-family:var(--mono);font-size:12px;color:var(--acc);letter-spacing:.15em}
+.step-title{font-size:19px;font-weight:650;letter-spacing:-.01em}
+.step-hint{color:var(--tx2);font-size:13.5px;margin-bottom:14px;max-width:620px}
+
+/* workload cards */
+.use-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.use-card{text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:var(--r);padding:14px 14px 12px;transition:border-color .15s,background .15s,transform .15s;color:var(--tx)}
+.use-card:hover{border-color:var(--line2);transform:translateY(-1px)}
+.use-card.on{border-color:var(--acc-line);background:linear-gradient(180deg,var(--acc-soft),var(--panel))}
+.use-card .uc-name{font-weight:650;font-size:14.5px;margin-bottom:4px}
+.use-card .uc-desc{color:var(--tx2);font-size:12.5px;line-height:1.45;min-height:36px}
+.use-card .uc-toks{font-family:var(--mono);font-size:10.5px;color:var(--tx3);margin-top:8px;letter-spacing:.03em}
+.use-card.on .uc-toks{color:var(--acc)}
+.custom-panel{border:1px dashed var(--line2);border-radius:var(--r);padding:16px;margin-top:12px;display:none;background:var(--panel)}
+.custom-panel.show{display:block}
+.slider-row{display:grid;grid-template-columns:200px 1fr 92px;gap:14px;align-items:center;margin-bottom:14px}
+.slider-row label{font-size:13px;color:var(--tx2)}
+.slider-row output{font-family:var(--mono);font-size:13px;text-align:right;color:var(--acc)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent}
+input[type=range]::-webkit-slider-runnable-track{height:3px;background:var(--line2);border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--acc);margin-top:-6.5px;border:3px solid var(--bg);box-shadow:0 0 0 1px var(--acc-line)}
+input[type=range]::-moz-range-track{height:3px;background:var(--line2);border-radius:2px}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--acc);border:3px solid var(--bg)}
+
+/* selects */
+.selwrap{position:relative}
+.selwrap::after{content:"";position:absolute;right:14px;top:50%;width:8px;height:8px;border-right:1.5px solid var(--tx2);border-bottom:1.5px solid var(--tx2);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+select{-webkit-appearance:none;appearance:none;width:100%;background:var(--panel);border:1px solid var(--line);color:var(--tx);border-radius:var(--r);padding:13px 38px 13px 14px;font-size:14.5px;font-weight:550;transition:border-color .15s}
+select:hover{border-color:var(--line2)}
+select:focus{outline:none;border-color:var(--acc-line)}
+.field-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--tx3);margin:0 0 8px 2px}
+.meta-line{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
+.chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;border:1px solid var(--line);border-radius:99px;padding:3px 9px;color:var(--tx2);background:var(--panel)}
+.chip.acc{color:var(--acc);border-color:var(--acc-line);background:var(--acc-soft)}
+.chip.est{color:var(--info);border-color:color-mix(in srgb,var(--info) 40%,transparent);background:var(--info-soft)}
+.chip.good{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent);background:var(--good-soft)}
+.chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent);background:var(--warn-soft)}
+.chip.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent);background:var(--bad-soft)}
+.desc-line{color:var(--tx2);font-size:13px;margin-top:8px;max-width:560px}
+
+/* quant */
+.quant-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:8px;margin-top:4px}
+.q-btn{border:1px solid var(--line);background:var(--panel);border-radius:11px;padding:9px 6px 7px;text-align:center;color:var(--tx);transition:border-color .15s,background .15s}
+.q-btn:hover{border-color:var(--line2)}
+.q-btn.on{border-color:var(--acc-line);background:var(--acc-soft)}
+.q-btn .q-name{font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.05em}
+.q-btn.on .q-name{color:var(--acc)}
+.q-btn .q-q{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-top:2px}
+.note-box{border-left:2px solid var(--acc);background:var(--acc-soft);border-radius:0 10px 10px 0;padding:11px 14px;font-size:13px;color:var(--tx2);margin-top:12px}
+.note-box b{color:var(--tx);font-weight:650}
+.fit-line{display:flex;align-items:center;gap:8px;margin-top:12px;font-family:var(--mono);font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.dot.g{background:var(--good)}.dot.a{background:var(--warn)}.dot.r{background:var(--bad)}
+
+/* hardware */
+.hw-row{display:grid;grid-template-columns:1fr;gap:12px}
+.count-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.n-btn{border:1px solid var(--line);background:var(--panel);color:var(--tx2);border-radius:11px;padding:9px 0;width:58px;text-align:center;font-family:var(--mono);font-size:14px;font-weight:700;transition:all .15s}
+.n-btn:hover{border-color:var(--line2);color:var(--tx)}
+.n-btn.on{border-color:var(--acc-line);background:var(--acc-soft);color:var(--acc)}
+.n-btn:disabled{opacity:.28;cursor:not-allowed}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-top:14px}
+.stat{background:var(--panel);padding:11px 13px}
+.stat .s-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--tx3)}
+.stat .s-v{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+.stat .s-s{font-size:10.5px;color:var(--tx3);margin-top:1px}
+.custom-form{display:none;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;border:1px dashed var(--line2);border-radius:var(--r);padding:14px;margin-top:12px;background:var(--panel)}
+.custom-form.show{display:grid}
+.custom-form label{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--tx3);display:block;margin-bottom:5px}
+.custom-form input,.custom-form select{width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--tx);border-radius:9px;padding:8px 10px;font-size:13px;font-family:var(--mono)}
+.custom-form input:focus,.custom-form select:focus{outline:none;border-color:var(--acc-line)}
+.cf-full{grid-column:1/-1}
+.check-row{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--tx2)}
+
+/* advanced details */
+details.adv{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);margin-bottom:34px;overflow:hidden}
+details.adv summary{list-style:none;cursor:pointer;padding:15px 18px;display:flex;align-items:center;gap:10px;font-weight:600;font-size:14.5px}
+details.adv summary::-webkit-details-marker{display:none}
+details.adv summary .tw{transition:transform .2s;color:var(--tx3);font-family:var(--mono);font-size:11px}
+details.adv[open] summary .tw{transform:rotate(90deg)}
+details.adv summary .sub{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--tx3);letter-spacing:.1em}
+.adv-body{border-top:1px solid var(--line);padding:6px 18px 18px}
+.opt{display:flex;gap:14px;padding:14px 0;border-bottom:1px dashed var(--line)}
+.opt:last-child{border-bottom:0}
+.opt input[type=checkbox]{width:18px;height:18px;accent-color:var(--acc);margin-top:2px;flex:none}
+.opt .o-t{font-weight:600;font-size:14px}
+.opt .o-d{color:var(--tx2);font-size:13px;margin-top:2px;max-width:560px}
+.conc-ctl{display:flex;align-items:center;gap:10px;margin-top:8px}
+.stepper{border:1px solid var(--line);background:var(--bg2);color:var(--tx);width:32px;height:32px;border-radius:9px;font-family:var(--mono);font-size:16px}
+.conc-val{font-family:var(--mono);font-size:16px;font-weight:700;min-width:36px;text-align:center;color:var(--acc)}
+.engine{font-family:var(--mono);font-size:12px;color:var(--tx2);background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;line-height:1.9;overflow-x:auto;white-space:pre}
+.engine b{color:var(--acc)}
+
+/* ---------- results rail ---------- */
+.rail{position:sticky;top:76px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,var(--panel2),var(--panel));overflow:hidden}
+.rail-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:13px 18px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--tx3)}
+.rail-body{padding:18px}
+.badge-verified{display:none;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--good);background:var(--good-soft);border:1px solid color-mix(in srgb,var(--good) 35%,transparent);border-radius:99px;padding:5px 11px;margin-bottom:14px}
+.badge-verified.show{display:flex}
+.bm-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--tx3)}
+.bm-value{font-family:var(--mono);font-size:clamp(44px,5vw,58px);font-weight:700;line-height:1.05;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin-top:4px}
+.bm-unit{font-size:15px;color:var(--tx2);font-weight:400;margin-left:8px;letter-spacing:0}
+.bm-sub{font-family:var(--mono);font-size:12px;color:var(--tx2);margin-top:2px}
+.pace-wrap{margin:14px 0 4px}
+.pace-track{position:relative;height:6px;background:var(--bg2);border:1px solid var(--line);border-radius:4px;margin-bottom:6px}
+.pace-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--acc),color-mix(in srgb,var(--acc) 55%,#fff 0%));border-radius:4px;transition:width .5s ease;min-width:3px}
+.pace-human{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--info)}
+.pace-legend{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--tx3)}
+.pace-legend .ph{color:var(--info)}
+.bm-note{font-size:12.5px;color:var(--tx2);margin-top:8px}
+.hr{border:0;border-top:1px dashed var(--line2);margin:16px 0}
+.metric-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mp{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel)}
+.mp .mp-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--tx3);margin-bottom:5px}
+.mp .mp-v{font-family:var(--mono);font-size:21px;font-weight:700;font-variant-numeric:tabular-nums}
+.mp .mp-c{font-size:11px;margin-top:4px;font-weight:600}
+.mp .mp-c.g{color:var(--good)}.mp .mp-c.a{color:var(--warn)}.mp .mp-c.r{color:var(--bad)}
+.callout{display:none;border:1px solid var(--acc-line);border-left-width:3px;background:var(--acc-soft);border-radius:10px;padding:13px 15px;margin-top:14px}
+.callout.show{display:block}
+.callout .c-t{font-weight:700;font-size:13.5px;color:var(--acc);margin-bottom:5px;font-family:var(--mono);letter-spacing:.06em}
+.callout .c-b{font-size:13px;color:var(--tx)}
+.callout .c-b b{color:var(--acc)}
+.split-note{display:none;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:14px;font-size:12.5px;color:var(--tx2);background:var(--panel)}
+.split-note.show{display:block}
+.split-note .sn-t{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px;font-weight:700}
+.split-note.good .sn-t{color:var(--good)}.split-note.warn .sn-t{color:var(--warn)}.split-note.info .sn-t{color:var(--info)}
+.mem-block{margin-top:16px}
+.mem-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;border:1px solid var(--line);background:var(--bg2);position:relative}
+.mem-seg{height:100%;transition:width .4s ease}
+.mem-w{background:var(--acc)}
+.mem-k{background:var(--info)}
+.mem-over{background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 4px,transparent 4px,transparent 8px)}
+.mem-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-family:var(--mono);font-size:10.5px;color:var(--tx2)}
+.mem-legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+.mem-note{font-size:12px;margin-top:8px}
+.mem-note.g{color:var(--good)}.mem-note.a{color:var(--warn)}.mem-note.r{color:var(--bad)}
+.scen{margin-top:16px}
+.scen-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:8px 2px;border-bottom:1px dashed var(--line);font-size:13px}
+.scen-row:last-child{border-bottom:0}
+.scen-row .sc-n{color:var(--tx2)}
+.scen-row .sc-n.hot{color:var(--acc);font-weight:600}
+.scen-row .sc-t{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+details.raw{margin-top:14px}
+details.raw summary{list-style:none;cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--tx3)}
+details.raw summary::-webkit-details-marker{display:none}
+.raw-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:10px;font-family:var(--mono);font-size:11.5px}
+.raw-grid div{display:flex;justify-content:space-between;border-bottom:1px dotted var(--line);padding:4px 0}
+.raw-grid span{color:var(--tx3)}
+.rail-foot{padding:11px 18px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10px;color:var(--tx3);letter-spacing:.05em}
+
+/* ---------- simulator ---------- */
+.sim-chip{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:7px 8px 7px 15px;font-family:var(--mono);font-size:11.5px;color:var(--tx2);margin-bottom:20px}
+.sim-chip button{border:0;background:var(--acc-soft);color:var(--acc);border-radius:99px;padding:4px 11px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em}
+.stage{border:1px solid var(--line);border-radius:18px;background:var(--panel);overflow:hidden;max-width:820px}
+.stage-bar{display:flex;align-items:center;gap:6px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.stage-bar i{width:10px;height:10px;border-radius:50%;background:var(--line2)}
+.stage-bar .st-title{margin-left:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--tx3)}
+.stage-body{padding:22px;min-height:300px}
+.sim-user{border:1px solid var(--line);background:var(--panel2);border-radius:12px 12px 12px 4px;padding:12px 15px;font-size:14px;max-width:520px;color:var(--tx2)}
+.sim-user b{color:var(--tx);font-weight:600}
+.sim-think{display:none;margin-top:18px}
+.sim-think.show{display:block}
+.think-label{font-family:var(--mono);font-size:11px;color:var(--warn);letter-spacing:.08em;margin-bottom:8px}
+.think-label .blink{animation:blink 1.1s infinite}
+@keyframes blink{50%{opacity:.2}}
+.think-track{height:5px;background:var(--bg2);border-radius:3px;border:1px solid var(--line);overflow:hidden;max-width:520px}
+.think-fill{height:100%;background:var(--warn);width:0%}
+.think-ct{font-family:var(--mono);font-size:10.5px;color:var(--tx3);margin-top:6px}
+.sim-out{margin-top:18px;font-size:14.5px;line-height:1.75;white-space:pre-wrap;max-width:640px;min-height:30px}
+.caret{display:inline-block;width:8px;height:17px;background:var(--acc);vertical-align:-3px;animation:blink .8s infinite}
+.sim-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:20px 0}
+.btn-primary{border:0;background:var(--acc);color:#171205;font-weight:700;border-radius:11px;padding:12px 26px;font-size:14px;letter-spacing:.02em;transition:filter .15s,transform .1s}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn-ghost{border:1px solid var(--line);background:transparent;color:var(--tx2);border-radius:11px;padding:11px 18px;font-size:13px}
+.btn-ghost:hover{border-color:var(--line2);color:var(--tx)}
+.scen-pills{display:flex;gap:8px;flex-wrap:wrap}
+.sp-btn{border:1px solid var(--line);background:var(--panel);color:var(--tx2);border-radius:99px;padding:8px 15px;font-size:12.5px;transition:all .15s}
+.sp-btn.on{border-color:var(--acc-line);color:var(--acc);background:var(--acc-soft)}
+.sim-stats{display:none;flex-wrap:wrap;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;max-width:820px;margin-top:22px}
+.sim-stats.show{display:flex}
+.ss{background:var(--panel);padding:13px 18px;flex:1;min-width:150px}
+.ss .ss-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--tx3)}
+.ss .ss-v{font-family:var(--mono);font-size:19px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+.ss .ss-s{font-size:11px;color:var(--tx2);margin-top:2px}
+.sim-context{max-width:820px;margin-top:18px;font-size:13px;color:var(--tx2);border-left:2px solid var(--info);padding:4px 0 4px 14px;display:none}
+.sim-context.show{display:block}
+
+/* ---------- cost ---------- */
+.sov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:22px 0 30px}
+.sov-card{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:18px}
+.sov-card svg{width:22px;height:22px;stroke:var(--acc);margin-bottom:10px}
+.sov-card .sv-t{font-weight:650;font-size:14.5px;margin-bottom:5px}
+.sov-card .sv-d{font-size:12.5px;color:var(--tx2)}
+.cost-grid{display:grid;grid-template-columns:300px 1fr;gap:26px;align-items:start}
+.cost-panel{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:18px}
+.cost-panel .field-label{margin-top:14px}
+.cost-panel .field-label:first-child{margin-top:0}
+.cost-panel input{width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--tx);border-radius:9px;padding:10px 12px;font-size:14px;font-family:var(--mono)}
+.cost-panel input:focus{outline:none;border-color:var(--acc-line)}
+.cost-out{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:20px}
+.vs-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.vs-box{border:1px solid var(--line);border-radius:12px;padding:16px;text-align:center}
+.vs-box.local{border-color:var(--acc-line);background:var(--acc-soft)}
+.vs-box .vs-l{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--tx3)}
+.vs-box .vs-v{font-family:var(--mono);font-size:30px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums}
+.vs-box.local .vs-v{color:var(--acc)}
+.vs-box .vs-s{font-size:11.5px;color:var(--tx2);margin-top:4px}
+.cmp-row{margin-bottom:14px}
+.cmp-l{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11.5px;margin-bottom:5px}
+.cmp-track{height:10px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.cmp-fill{height:100%;border-radius:6px;transition:width .5s}
+.cmp-fill.lc{background:var(--acc)}.cmp-fill.cc{background:var(--tx3)}
+.breakeven{border-top:1px dashed var(--line2);margin-top:16px;padding-top:16px;font-size:14px}
+.breakeven b{font-family:var(--mono);color:var(--acc);font-size:18px}
+.cost-note{font-size:12px;color:var(--tx3);margin-top:12px}
+
+footer{border-top:1px solid var(--line);padding:26px 22px 40px;text-align:center;font-family:var(--mono);font-size:10.5px;color:var(--tx3);letter-spacing:.08em;line-height:2}
+.toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,80px);background:var(--panel3);border:1px solid var(--acc-line);color:var(--tx);border-radius:99px;padding:10px 22px;font-family:var(--mono);font-size:12px;transition:transform .3s cubic-bezier(.2,.9,.3,1.2);z-index:99}
+.toast.show{transform:translate(-50%,0)}
+.hidden{display:none!important}
+
+@media (max-width:1020px){
+  .layout{grid-template-columns:1fr}
+  .rail{position:static}
+  .cost-grid{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .topbar{flex-wrap:wrap;gap:10px;padding:10px 14px}
+  .tabs{margin-left:0;order:3;width:100%;justify-content:center}
+  .actions{margin-left:auto}
+  .wrap{padding:20px 14px 60px}
+  .slider-row{grid-template-columns:1fr;gap:6px}
+  .slider-row output{text-align:left}
+  .metric-pair{grid-template-columns:1fr}
+  .brand small{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="1" y="12" width="12" height="3" rx="1.5" fill="var(--acc)"/><rect x="1" y="7" width="16" height="3" rx="1.5" fill="var(--acc)" opacity=".65"/><rect x="1" y="2" width="8" height="3" rx="1.5" fill="var(--acc)" opacity=".35"/></svg>
+    LOCAL&nbsp;AI&nbsp;·&nbsp;SPEED&nbsp;PLANNER <small>v2.0</small>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button class="tab-btn on" data-tab="plan">Planner</button>
+    <button class="tab-btn" data-tab="sim">Simulator</button>
+    <button class="tab-btn" data-tab="cost">Cost</button>
+  </nav>
+  <div class="actions">
+    <button class="icon-btn" id="shareBtn" title="Copy a link to this exact setup">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+      SHARE
+    </button>
+    <button class="icon-btn" id="themeBtn" title="Toggle dark / light">
+      <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ================= PLANNER ================= -->
+<section id="tab-plan">
+  <div class="intro">
+    <h1>How fast would AI run on <em>your own hardware?</em></h1>
+    <p>Answer three questions and we'll show you exactly how it will <b>feel</b> — in plain English. No jargon, no signup, and everything runs right here in your browser.</p>
+  </div>
+
+  <div class="layout">
+    <div class="config">
+
+      <!-- STEP 1 -->
+      <div class="step">
+        <div class="step-head"><span class="step-num">01</span><span class="step-title">What will you use it for?</span></div>
+        <p class="step-hint">This matters more than anything else. AI "reads" your request before it "writes" an answer — and some jobs involve a <b>lot</b> of reading. (AI reads and writes in <span class="def" title="A token is a chunk of text — roughly ¾ of a word. 1,000 tokens ≈ 750 words ≈ a page and a half.">tokens</span>.) Agent frameworks like Hermes or OpenClaw silently inject large instruction files (AGENTS.md, SOUL.md, tool definitions, skills) into <b>every single exchange</b> — easily 10K–60K tokens before you've typed a word.</p>
+        <div class="use-grid" id="useGrid"></div>
+        <div style="margin-top:14px">
+          <p class="field-label">Framework / context injection <span style="text-transform:none;letter-spacing:0;color:var(--tx3)">— how much invisible overhead does your tool add?</span></p>
+          <div class="count-row" id="harnessRow"></div>
+          <p class="desc-line" id="harnessDesc"></p>
+        </div>
+        <div class="custom-panel" id="customUsePanel">
+          <div class="slider-row">
+            <label>How much it reads per turn<br><span class="mono" style="font-size:10px;color:var(--tx3)">the "prompt"</span></label>
+            <input type="range" id="wPrompt" min="7" max="14.3" step="0.05" value="9.7">
+            <output id="wPromptV">8K tokens</output>
+          </div>
+          <div class="slider-row">
+            <label>How much it writes back<br><span class="mono" style="font-size:10px;color:var(--tx3)">the "response"</span></label>
+            <input type="range" id="wGen" min="5.6" max="8.4" step="0.05" value="6.2">
+            <output id="wGenV">500 tokens</output>
+          </div>
+          <div class="slider-row">
+            <label>Total memory it keeps<br><span class="mono" style="font-size:10px;color:var(--tx3)">the "context window"</span></label>
+            <input type="range" id="wCtx" min="12" max="20" step="0.1" value="15">
+            <output id="wCtxV">32K tokens</output>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="step">
+        <div class="step-head"><span class="step-num">02</span><span class="step-title">Choose a brain</span></div>
+        <p class="step-hint">Bigger models are smarter but heavier. Clever "MoE" models only use a slice of themselves per word, so they punch above their weight.</p>
+        <p class="field-label">Model</p>
+        <div class="selwrap"><select id="modelSel"></select></div>
+        <div class="meta-line" id="modelBadges"></div>
+        <p class="desc-line" id="modelDesc"></p>
+        <div class="custom-form" id="customModelPanel">
+          <div><label>Name</label><input id="cmName" value="My Model"></div>
+          <div><label>Total size (B params)</label><input id="cmTotal" type="number" value="70" min="1"></div>
+          <div><label>Active per token (B)</label><input id="cmActive" type="number" value="70" min="1"></div>
+          <div><label>Layers</label><input id="cmL" type="number" value="80" min="1"></div>
+          <div><label>Attention heads</label><input id="cmH" type="number" value="8" min="1"></div>
+          <div><label>Head dimension</label><input id="cmD" type="number" value="128" min="1"></div>
+          <div class="cf-full check-row"><input type="checkbox" id="cmMla"><span>Uses MLA memory compression (DeepSeek-style — much smaller memory footprint)</span></div>
+        </div>
+
+        <p class="field-label" style="margin-top:20px">Compression ("quantization")</p>
+        <div class="quant-grid" id="quantGrid"></div>
+        <div class="note-box"><b>Q4 is the sweet spot</b> — near-lossless quality at half the size. A bigger model at Q4 usually beats a smaller model at full precision. IQ1–IQ3 squeeze much smaller but run <b>slower</b> on today's software — only worth it when nothing else fits.</div>
+        <div class="fit-line"><span class="dot g" id="quantDot"></span><span id="quantFit" class="mono"></span></div>
+      </div>
+
+      <!-- STEP 3 -->
+      <div class="step">
+        <div class="step-head"><span class="step-num">03</span><span class="step-title">Choose a machine</span></div>
+        <p class="step-hint">Two things decide speed: <b>memory bandwidth</b> (how fast it can read the model — controls writing speed) and <b>compute</b> (controls thinking time). Memory size decides what fits at all.</p>
+        <p class="field-label">Device family</p>
+        <div class="selwrap"><select id="devSel"></select></div>
+        <div id="devVarWrap" style="margin-top:12px" class="hidden">
+          <p class="field-label">Memory configuration</p>
+          <div class="selwrap"><select id="devVar"></select></div>
+        </div>
+        <div class="count-row" id="countRow"></div>
+        <p class="desc-line" id="devBlurb"></p>
+        <div class="stat-grid">
+          <div class="stat"><div class="s-l">Memory</div><div class="s-v" id="dsRam">—</div><div class="s-s" id="dsRamS"></div></div>
+          <div class="stat"><div class="s-l">Bandwidth</div><div class="s-v" id="dsBw">—</div><div class="s-s">per unit · writing speed</div></div>
+          <div class="stat"><div class="s-l">Compute</div><div class="s-v" id="dsTf">—</div><div class="s-s">per unit · thinking speed</div></div>
+          <div class="stat"><div class="s-l">Power</div><div class="s-v" id="dsPow">—</div><div class="s-s">under load</div></div>
+        </div>
+        <div class="custom-form" id="customDevPanel">
+          <div><label>Name</label><input id="cdName" value="My Rig"></div>
+          <div><label>Memory per unit (GB)</label><input id="cdRam" type="number" value="64" min="1"></div>
+          <div><label>Bandwidth (GB/s)</label><input id="cdBw" type="number" value="500" min="1"></div>
+          <div><label>Compute (TFLOPS)</label><input id="cdTf" type="number" value="100" min="1"></div>
+          <div><label>Power (W)</label><input id="cdTdp" type="number" value="300" min="1"></div>
+          <div><label>Chip style</label><select id="cdType"><option value="nvidia">NVIDIA-like (CUDA)</option><option value="apple">Apple-like (unified memory)</option></select></div>
+          <div class="cf-full check-row"><input type="checkbox" id="cdFp4"><span>Has FP4 hardware acceleration (Blackwell-generation or newer)</span></div>
+        </div>
+      </div>
+
+      <!-- ADVANCED -->
+      <details class="adv" id="advDet">
+        <summary><span class="tw">▶</span> Advanced knobs <span class="sub">SAFE TO IGNORE — SENSIBLE DEFAULTS</span></summary>
+        <div class="adv-body">
+          <div class="opt">
+            <input type="checkbox" id="optMtp">
+            <div><div class="o-t">Multi-token drafting (MTP)</div><div class="o-d">The model sketches several words ahead, then checks its own work — roughly <b>2× faster writing</b> with no quality loss. Supported on newer models.</div></div>
+          </div>
+          <div class="opt">
+            <input type="checkbox" id="optVllm">
+            <div><div class="o-t">High-performance server (vLLM)</div><div class="o-d">Free, standard serving software that squeezes ~<b>1.5× more speed</b> out of NVIDIA chips. (No effect on Apple silicon.)</div></div>
+          </div>
+          <div class="opt">
+            <input type="checkbox" id="optKv">
+            <div><div class="o-t">Compressed short-term memory (KV Q4)</div><div class="o-d">Shrinks the model's running memory of your conversation to a quarter of the size — lets you fit <b>much longer documents</b>, at a tiny quality cost.</div></div>
+          </div>
+          <div class="opt">
+            <input type="checkbox" id="optPfx">
+            <div><div class="o-t">Prefix caching</div><div class="o-d">Remembers the part of your prompt that never changes (like your agent's instructions) instead of re-reading it every single step. <b>Huge time-saver for agents.</b></div></div>
+          </div>
+          <div class="opt">
+            <div style="margin-top:2px">
+              <div class="o-t">People (or agents) using it at once</div>
+              <div class="o-d">One machine can serve several users at the same time. Each person gets slightly slower responses, and the model's memory eventually limits how many fit.</div>
+              <div class="conc-ctl">
+                <button class="stepper" id="concMinus">−</button>
+                <span class="conc-val" id="concVal">1</span>
+                <button class="stepper" id="concPlus">+</button>
+                <span class="mono" style="font-size:11px;color:var(--tx3)" id="concNote"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="adv">
+        <summary><span class="tw">▶</span> How the math works <span class="sub">FOR THE CURIOUS</span></summary>
+        <div class="adv-body">
+          <div class="engine">WRITING SPEED (memory-bandwidth bound)
+  words/sec = (bandwidth × split-efficiency ÷ active model size)
+              × hardware-efficiency × compression-factor × drafting-boost
+
+THINKING SPEED (compute bound)
+  tokens read/sec = (TFLOPS × split-efficiency × 1000 ÷ (2 × active params))
+              × hardware-efficiency × compression-factor
+  ...degrading beyond 32K of context as attention gets expensive
+
+MEMORY  model weights + conversation memory ≤ 85% of total RAM
+        (if the weights don't fit, layers spill to the CPU — very slow)
+
+Calibrated against published real-world measurements; typical accuracy ±15%.</div>
+        </div>
+      </details>
+    </div>
+
+    <!-- RESULTS RAIL -->
+    <aside class="rail">
+      <div class="rail-head"><span>HOW IT WILL FEEL</span><span id="railConf" class="mono"></span></div>
+      <div class="rail-body">
+        <div class="badge-verified" id="verifiedBadge"><span>✓</span><span id="verifiedText"></span></div>
+
+        <div class="bm-label">Writing speed</div>
+        <div class="bm-value"><span id="rWps">—</span><span class="bm-unit">words / sec</span></div>
+        <div class="bm-sub" id="rTps">—</div>
+        <div class="pace-wrap">
+          <div class="pace-track">
+            <div class="pace-fill" id="paceFill" style="width:3%"></div>
+            <div class="pace-human" id="paceHuman"></div>
+          </div>
+          <div class="pace-legend"><span class="ph">▲ you read (~4 w/s)</span><span id="paceX"></span></div>
+        </div>
+        <div class="bm-note" id="rPaceNote"></div>
+
+        <hr class="hr">
+        <div class="metric-pair">
+          <div class="mp">
+            <div class="mp-l">Time to first word</div>
+            <div class="mp-v" id="rTtft">—</div>
+            <div class="mp-c g" id="rTtftChip">—</div>
+          </div>
+          <div class="mp">
+            <div class="mp-l">Full reply takes</div>
+            <div class="mp-v" id="rFull">—</div>
+            <div class="mp-c" id="rFullSub" style="color:var(--tx3)">reading + writing</div>
+          </div>
+        </div>
+
+        <div class="callout" id="agentCallout">
+          <div class="c-t">⚠ THE AGENTIC WALL</div>
+          <div class="c-b" id="agentText"></div>
+        </div>
+
+        <div class="split-note" id="splitNote">
+          <div class="sn-t" id="splitTitle"></div>
+          <div id="splitText"></div>
+        </div>
+
+        <div class="mem-block">
+          <div class="bm-label" style="margin-bottom:8px">Memory fit</div>
+          <div class="mem-bar" id="memBar">
+            <div class="mem-seg mem-w" id="memW"></div>
+            <div class="mem-seg mem-k" id="memK"></div>
+            <div class="mem-seg mem-over" id="memOver" style="width:0%"></div>
+          </div>
+          <div class="mem-legend">
+            <span><i style="background:var(--acc)"></i><span id="legW">model</span></span>
+            <span><i style="background:var(--info)"></i><span id="legK">conversation</span></span>
+            <span id="legFree"></span>
+          </div>
+          <div class="mem-note g" id="memNote"></div>
+        </div>
+
+        <div class="scen">
+          <div class="bm-label" style="margin-bottom:6px">Real tasks, timed</div>
+          <div class="scen-row"><span class="sc-n">Quick chat reply</span><span class="sc-t" id="sc1t">—</span></div>
+          <div class="scen-row"><span class="sc-n">Long, thoughtful answer</span><span class="sc-t" id="sc2t">—</span></div>
+          <div class="scen-row"><span class="sc-n hot">One coding-agent step</span><span class="sc-t" id="sc3t">—</span></div>
+          <div class="scen-row"><span class="sc-n">Summarize a 20-page report</span><span class="sc-t" id="sc4t">—</span></div>
+        </div>
+
+        <details class="raw">
+          <summary>▸ Raw numbers</summary>
+          <div class="raw-grid">
+            <div><span>decode</span><b id="rdDec">—</b></div>
+            <div><span>prefill</span><b id="rdPre">—</b></div>
+            <div><span>weights</span><b id="rdW">—</b></div>
+            <div><span>KV cache</span><b id="rdKv">—</b></div>
+            <div><span>active size</span><b id="rdAct">—</b></div>
+            <div><span>ctx penalty</span><b id="rdDeg">—</b></div>
+            <div><span>max parallel</span><b id="rdStreams">—</b></div>
+            <div><span>per-user @ N</span><b id="rdConc">—</b></div>
+          </div>
+        </details>
+      </div>
+      <div class="rail-foot">ESTIMATE · CALIBRATED TO REAL BENCHMARKS · ±15% TYPICAL</div>
+    </aside>
+  </div>
+</section>
+
+<!-- ================= SIMULATOR ================= -->
+<section id="tab-sim" class="hidden">
+  <div class="intro">
+    <h1>See it <em>in action</em></h1>
+    <p>This uses the exact setup from your Planner — no sliders, no settings. Press run and watch how it would actually feel, in real time.</p>
+  </div>
+  <div class="sim-chip"><span id="simChip">—</span><button id="simEdit">CHANGE</button></div>
+
+  <details class="adv" style="margin-bottom:20px">
+    <summary><span class="tw">▶</span> Quick swap <span class="sub">CHANGE SETUP WITHOUT LEAVING THIS PAGE</span></summary>
+    <div class="adv-body">
+      <div class="row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+        <div><p class="field-label">Device</p><div class="selwrap"><select id="simDev"></select></div></div>
+        <div><p class="field-label">Model</p><div class="selwrap"><select id="simModel"></select></div></div>
+        <div><p class="field-label">Quant</p><div class="selwrap"><select id="simQuant"></select></div></div>
+      </div>
+      <div id="simVarRow" style="margin-bottom:12px">
+        <p class="field-label">Memory config</p><div class="selwrap"><select id="simVar"></select></div>
+      </div>
+      <div class="count-row" id="simCountRow"></div>
+      <div class="opt" style="border-bottom:0;padding-top:14px">
+        <input type="checkbox" id="simMtp"><div><div class="o-t">MTP / speculative decoding</div><div class="o-d">2× faster writing (model-dependent)</div></div>
+      </div>
+      <div class="opt" style="border-bottom:0">
+        <input type="checkbox" id="simVllm"><div><div class="o-t">vLLM / TensorRT</div><div class="o-d">1.5× faster on NVIDIA (no effect on Apple)</div></div>
+      </div>
+    </div>
+  </details>
+
+  <div class="scen-pills" style="margin-bottom:16px" id="simScenPills">
+    <button class="sp-btn on" data-scen="short">Short reply</button>
+    <button class="sp-btn" data-scen="medium">Medium reply</button>
+    <button class="sp-btn" data-scen="long">Long reply</button>
+  </div>
+
+  <div class="stage">
+    <div class="stage-bar"><i></i><i></i><i></i><span class="st-title" id="stageTitle">LOCAL MODEL — LIVE SIMULATION</span></div>
+    <div class="stage-body">
+      <div class="sim-user"><b>You:</b> <span id="simUserText"></span></div>
+      <div class="sim-think" id="simThink">
+        <div class="think-label">READING YOUR REQUEST<span class="blink">…</span> <button class="btn-ghost" id="simSkip" style="padding:3px 10px;font-size:11px;display:none">skip ahead →</button></div>
+        <div class="think-track"><div class="think-fill" id="simThinkFill"></div></div>
+        <div class="think-ct" id="simThinkCt"></div>
+      </div>
+      <div class="sim-out" id="simOut"></div>
+    </div>
+  </div>
+
+  <div class="sim-controls">
+    <button class="btn-primary" id="simRun">▶ Run it</button>
+    <button class="btn-ghost hidden" id="simStop">■ Stop</button>
+    <button class="btn-ghost hidden" id="simSkipDecode" style="font-size:12px">skip to end →</button>
+    <span class="mono" style="font-size:11px;color:var(--tx3)">REAL TIME — IF IT'S SLOW, THAT'S THE POINT</span>
+  </div>
+
+  <div class="sim-stats" id="simStats">
+    <div class="ss"><div class="ss-l">Thinking time</div><div class="ss-v" id="ssTtft">—</div><div class="ss-s">before the first word appeared</div></div>
+    <div class="ss"><div class="ss-l">Writing speed</div><div class="ss-v" id="ssWps">—</div><div class="ss-s" id="ssWpsS"></div></div>
+    <div class="ss"><div class="ss-l">Total</div><div class="ss-v" id="ssTotal">—</div><div class="ss-s">start to finish</div></div>
+  </div>
+  <div class="sim-context" id="simContext"></div>
+
+  <div class="card" style="margin-top:30px;max-width:820px">
+    <h2 style="font-size:15px;font-weight:650;margin-bottom:12px">Reference: what speeds feel like</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3)">Speed</th><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3)">Experience</th></tr></thead>
+      <tbody id="speedRefBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================= COST ================= -->
+<section id="tab-cost" class="hidden">
+  <div class="intro">
+    <h1>The <em>money</em> case</h1>
+    <p>Cloud AI rents intelligence by the token. Local AI is a machine you buy once — and it's yours.</p>
+  </div>
+
+  <div class="sov-grid">
+    <div class="sov-card">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <div class="sv-t">Private by physics</div>
+      <div class="sv-d">Your prompts never leave the room. No logs, no training on your data, no breach that can expose them.</div>
+    </div>
+    <div class="sov-card">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M18.2 8.5a4.5 4.5 0 0 1 0 7c-2.5 2-5.5-1-8-3.5S4.2 6.5 5.8 8.5a4.5 4.5 0 0 1 0 7" transform="rotate(90 12 12)"/></svg>
+      <div class="sv-t">No rate limits</div>
+      <div class="sv-d">Run a thousand agent steps at 3 AM. Nobody throttles you, queues you, or cuts you off.</div>
+    </div>
+    <div class="sov-card">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 3l18 18M10.7 5.1A11 11 0 0 1 21 9M5 9a11 11 0 0 1 2.3-2.4M8.5 12.5a6 6 0 0 1 5.5-1.6M12 18h.01"/></svg>
+      <div class="sv-t">Works offline</div>
+      <div class="sv-d">Plane, cabin, outage, apocalypse. If it has power, it works. No subscription can be revoked.</div>
+    </div>
+    <div class="sov-card">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M16 12h.01M4 10h16"/></svg>
+      <div class="sv-t">Fixed cost</div>
+      <div class="sv-d">Buy once, pay a few dollars of power a month. Your bill never surprises you again.</div>
+    </div>
+  </div>
+
+  <div class="cost-grid">
+    <div class="cost-panel">
+      <p class="field-label">Country (electricity rate)</p>
+      <div class="selwrap"><select id="cCountry"></select></div>
+      <p class="field-label" style="margin-top:14px">Heavy use (hours / day)</p>
+      <input id="cHours" type="number" value="4" step="0.5" min="0" max="24">
+      <p class="cost-note" style="margin-top:14px">Using your Planner setup: <span id="costChip" class="mono"></span></p>
+    </div>
+
+    <div class="cost-out">
+      <div class="vs-row">
+        <div class="vs-box local">
+          <div class="vs-l">Your electricity · per 1M tokens</div>
+          <div class="vs-v" id="coLocal">—</div>
+          <div class="vs-s">power draw only — hardware purchase not included</div>
+        </div>
+        <div class="vs-box">
+          <div class="vs-l">Cloud API · per 1M tokens</div>
+          <div class="vs-v" id="coCloud">—</div>
+          <div class="vs-s" id="coCloudName">—</div>
+        </div>
+      </div>
+
+      <div class="cmp-row">
+        <div class="cmp-l"><span>YOUR ELECTRICITY COST (monthly)</span><b id="coLocalMo">—</b></div>
+        <div class="cmp-track"><div class="cmp-fill lc" id="barLocal" style="width:2%"></div></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-l"><span>CLOUD API COST (same usage)</span><b id="coCloudMo">—</b></div>
+        <div class="cmp-track"><div class="cmp-fill cc" id="barCloud" style="width:2%"></div></div>
+      </div>
+
+      <p class="cost-note">Roughly <span id="coTokens" class="mono"></span> tokens processed per month at your usage. Local electricity cost only — the hardware is yours regardless. Even where cloud is cheaper on paper, local buys you privacy, no rate limits, and independence.</p>
+
+      <p class="field-label" style="margin:18px 0 8px">All cloud services (sorted by price)</p>
+      <div id="cloudList" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  LOCAL AI SPEED PLANNER — RUNS ENTIRELY IN YOUR BROWSER<br>
+  NO ACCOUNTS · NO TRACKING · NO DATA EVER LEAVES THIS PAGE
+</footer>
+
+<div class="toast" id="toast">Link copied — share it anywhere</div>
+
+<script>
+"use strict";
+/* ==================== DATA ==================== */
+const QUANTS={
+  q8:{label:"Q8",q:"~99%",bpw:8}, q6:{label:"Q6",q:"~98%",bpw:6},
+  q5:{label:"Q5",q:"~97%",bpw:5}, q4:{label:"Q4",q:"~96%",bpw:4.5},
+  iq3:{label:"IQ3",q:"~90%",bpw:3}, iq2:{label:"IQ2",q:"~82%",bpw:2},
+  iq1:{label:"IQ1",q:"~76%",bpw:1.5}
+};
+const MODELS={
+  dsv4:{name:"DeepSeek-V4-Flash-0731",totalB:284,activeB:13,moe:true,L:61,H:128,D:192,mla:true,
+    sizeOverride:{fp8:167,q4:155,iq2:97,iq1:82.5},
+    desc:"The local favorite. Only 13B parameters fire per word, so it flies on high-bandwidth machines — but its memory of long conversations is large."},
+  glm52:{name:"GLM-5.2",totalB:744,activeB:40,moe:true,L:96,H:16,D:256,
+    desc:"Frontier-class agentic model. Brilliant at multi-step work, but needs serious memory to live in."},
+  glm52air:{name:"GLM-5.2-Air",totalB:106,activeB:12,moe:true,L:48,H:8,D:128,
+    desc:"The compact agentic model — fits comfortably on a single well-specced machine."},
+  dsv3:{name:"DeepSeek V3",totalB:671,activeB:37,moe:true,L:61,H:128,D:192,mla:true,
+    desc:"The open-weight classic that started the MoE wave. Still excellent, still huge."},
+  glm45:{name:"GLM-4.5",totalB:355,activeB:32,moe:true,L:48,H:8,D:128,
+    desc:"Strong all-round agentic model, a generation behind 5.2."},
+  qwen235:{name:"Qwen 3 235B",totalB:235,activeB:22,moe:true,L:94,H:4,D:128,
+    desc:"Capable generalist with a small memory footprint for its size."},
+  qwen72:{name:"Qwen 3 72B",totalB:72,activeB:72,moe:false,L:80,H:8,D:128,
+    desc:"Dense — every parameter works on every word. Simple, predictable, bandwidth-hungry."},
+  qwen27:{name:"Qwen 3.6 27B",totalB:27,activeB:27,moe:false,L:48,H:8,D:128,
+    desc:"Small enough to run fast almost anywhere. A great first local model."},
+  llama120:{name:"Llama 4 120B",totalB:120,activeB:20,moe:true,L:48,H:8,D:128,
+    desc:"Meta's MoE workhorse — quick for its size."},
+  llama70:{name:"Llama 3.3 70B",totalB:70,activeB:70,moe:false,L:80,H:8,D:128,
+    desc:"The dependable dense classic."},
+  gptoss:{name:"GPT-OSS 120B",totalB:120,activeB:12,moe:true,L:48,H:8,D:128,
+    desc:"Very sparse MoE — only 12B active, so it's one of the fastest big brains around."},
+  mistral:{name:"Mistral Large",totalB:123,activeB:123,moe:false,L:96,H:12,D:128,
+    desc:"Dense and heavy, with a large attention memory."},
+  minimax3:{name:"MiniMax M3",totalB:456,activeB:46,moe:true,L:80,H:8,D:128,est:true,
+    desc:"New release — architecture figures are best estimates."},
+  kimik3:{name:"Kimi K3",totalB:2812,activeB:52,moe:true,L:128,H:16,D:256,est:true,
+    desc:"The largest open model ever — needs a small datacenter's worth of memory. Estimated specs."},
+  kimik26:{name:"Kimi K2.6",totalB:1280,activeB:32,moe:true,L:96,H:16,D:256,est:true,
+    desc:"Huge but sparse — surprisingly quick once you can fit it. Estimated specs."},
+  custom:{name:"Custom model",custom:true,desc:"Define your own architecture below."}
+};
+const TP_NVIDIA={1:1,2:.8,3:.75,4:.7,5:.68,6:.65,7:.62,8:.6}, TP_APPLE={1:1,2:.7,3:.65,4:.6};
+const DEVICES={
+  dgx:{name:"DGX Spark",vendor:"nvidia",bw:273,tflops:1000,tdp:140,fp4:true,variants:[{ram:128}],tpEff:{1:1,2:.85,3:.8,4:.75,5:.72,6:.7,7:.68,8:.65},
+    blurb:"NVIDIA's desk-sized AI box. Enormous compute for thinking, modest bandwidth for writing."},
+  rtx5090:{name:"RTX 5090",vendor:"nvidia",bw:1792,tflops:429,tdp:575,fp4:true,variants:[{ram:32}],tpEff:TP_NVIDIA,
+    blurb:"Consumer flagship. Incredible bandwidth per dollar — but only 32 GB each, so big models spill to the CPU."},
+  rtx4090:{name:"RTX 4090",vendor:"nvidia",bw:1008,tflops:330,tdp:450,fp4:false,variants:[{ram:24}],tpEff:TP_NVIDIA,
+    blurb:"Last-gen favorite. Great all-rounder for mid-size models."},
+  rtx3090:{name:"RTX 3090",vendor:"nvidia",bw:936,tflops:142,tdp:350,fp4:false,variants:[{ram:24}],tpEff:{1:1,2:.78,3:.73,4:.68,5:.65,6:.63,7:.6,8:.58},
+    blurb:"The budget legend. Cheap used, and stacks well."},
+  rtx6000:{name:"RTX 6000 Ada",vendor:"nvidia",bw:960,tflops:330,tdp:300,fp4:false,variants:[{ram:48}],tpEff:{1:1,2:.82,3:.78,4:.75,5:.72,6:.7,7:.68,8:.65},
+    blurb:"Workstation card with 48 GB — pricey, but quiet and reliable."},
+  m5ultra:{name:"Mac Studio M5 Ultra",vendor:"apple",spec:true,bw:1200,tflops:35,tdp:250,fp4:false,variants:[{ram:256},{ram:512}],tpEff:TP_APPLE,
+    blurb:"UNRELEASED — specs are educated guesses based on Apple's trajectory."},
+  m3ultra:{name:"Mac Studio M3 Ultra",vendor:"apple",bw:819,tflops:27,tdp:215,fp4:false,variants:[{ram:96},{ram:256},{ram:512}],tpEff:TP_APPLE,
+    blurb:"Up to half a terabyte of unified memory — the only desktop that fits the biggest models whole."},
+  m2studio:{name:"Mac Studio M2 Ultra",vendor:"apple",bw:800,tflops:27,tdp:215,fp4:false,variants:[{ram:192}],tpEff:TP_APPLE,
+    blurb:"Previous generation, often discounted."},
+  m2pro:{name:"Mac Pro M2 Ultra",vendor:"apple",bw:800,tflops:27,tdp:215,fp4:false,variants:[{ram:192}],tpEff:TP_APPLE,
+    blurb:"Same silicon as the Studio, in a tower."},
+  mbp:{name:"MacBook Pro M4 Max",vendor:"apple",bw:546,tflops:17,tdp:120,fp4:false,variants:[{ram:128}],tpEff:TP_APPLE,
+    blurb:"A laptop that runs 100B+ models. Genuinely absurd, genuinely real."},
+  mini:{name:"Mac Mini M4 Pro",vendor:"apple",bw:273,tflops:17,tdp:140,fp4:false,variants:[{ram:48},{ram:64}],tpEff:TP_APPLE,
+    blurb:"The cheapest ticket into local AI. Great for small models."},
+  custom:{name:"Custom device",custom:true,vendor:"nvidia",blurb:"Define your own hardware below."}
+};
+const USES={
+  chat:{name:"Quick question",desc:"A single question, no conversation history.",base:300,gen:200,ctx:4096},
+  dev:{name:"Dev / power user",desc:"Working chat with system prompt, tools, and some context.",base:2000,gen:500,ctx:32768},
+  agent:{name:"Autonomous agent",desc:"Agent with injected skills, tools, and file context.",base:8000,gen:1000,ctx:131072},
+  deep:{name:"Deep session",desc:"Long conversation — many exchanges, huge accumulated context.",base:50000,gen:1500,ctx:524288},
+  docs:{name:"Document Q&A",desc:"Feed it a document and ask questions about it.",base:30000,gen:800,ctx:65536},
+  rag:{name:"RAG / knowledge base",desc:"Retrieval-augmented search over a large document corpus.",base:20000,gen:600,ctx:131072},
+  batch:{name:"Batch processing",desc:"Many short independent tasks (classification, extraction).",base:500,gen:100,ctx:4096},
+  custom:{name:"Custom",desc:"I know my numbers — let me set them.",base:8000,gen:500,ctx:32768}
+};
+const HARNESSES={
+  bare:{name:"None / bare API",desc:"No framework — just you and the model.",overhead:0},
+  light:{name:"Light harness",desc:"Minimal system prompt, no tools (e.g. a simple chat UI like Open WebUI).",overhead:2000},
+  typical:{name:"Typical harness",desc:"System prompt + tool definitions + skills (e.g. standard Hermes/OpenClaw/Cline setup).",overhead:15000},
+  heavy:{name:"Large customised harness",desc:"Large AGENTS.md, SOUL.md, many tools, file context, memory injection.",overhead:50000}
+};
+const CLOUD={
+  deepseek:{name:"DeepSeek API",in:.14,out:.28,blend:.21},
+  glm:{name:"GLM-5.2 (Z.AI)",in:.59,out:.59,blend:.59},
+  minimax:{name:"MiniMax M3",in:1.1,out:1.1,blend:1.1},
+  claude:{name:"Claude (Sonnet)",in:3,out:15,blend:7.5},
+  gpt4o:{name:"GPT-4o",in:2.5,out:10,blend:5.6},
+  gemini:{name:"Gemini 2 Pro",in:1.25,out:5,blend:2.8},
+  gp5:{name:"GPT-5.5",in:15,out:75,blend:37.5}
+};
+const ELECTRICITY={
+  DE:{name:"🇩🇪 Germany",kwh:.406},UK:{name:"🇬🇧 UK",kwh:.402},FR:{name:"🇫🇷 France",kwh:.276},
+  AU:{name:"🇦🇺 Australia",kwh:.259},JP:{name:"🇯🇵 Japan",kwh:.227},US:{name:"🇺🇸 USA",kwh:.188},
+  BR:{name:"🇧🇷 Brazil",kwh:.164},KR:{name:"🇰🇷 South Korea",kwh:.127},CA:{name:"🇨🇦 Canada",kwh:.123},
+  IN:{name:"🇮🇳 India",kwh:.077},CN:{name:"🇨🇳 China",kwh:.076},IR:{name:"🇮🇷 Iran",kwh:.003}
+};
+
+/* ==================== STATE ==================== */
+const S={tab:"plan",use:"chat",harness:"light",model:"dsv4",quant:"q4",dev:"dgx",n:2,variant:0,
+  prompt:2300,gen:200,ctx:4096,mtp:false,vllm:false,kvq4:false,pfx:false,conc:1,
+  cm:{name:"My Model",totalB:70,activeB:70,L:80,H:8,D:128,mla:false},
+  cd:{name:"My Rig",ram:64,bw:500,tflops:100,tdp:300,vendor:"nvidia",fp4:false}};
+let R=null;
+
+/* ==================== HELPERS ==================== */
+const $=id=>document.getElementById(id);
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;};
+const fmt=(x,d=1)=>{if(!isFinite(x))return"—";if(x>=1000)return Math.round(x).toLocaleString("en-US");if(x>=100)return x.toFixed(0);return x.toFixed(d);};
+const fmtTok=t=>{if(t>=1e6)return(t/1e6).toFixed(t>=1e7?0:1)+"M";if(t>=1e3)return(t/1e3).toFixed(t>=1e4?0:1)+"K";return Math.round(t)+"";};
+const fmtTime=s=>{if(!isFinite(s))return"—";if(s<1)return Math.round(s*1000)+"ms";if(s<60)return s.toFixed(s<10?1:0)+"s";const m=Math.floor(s/60);return m+"m "+Math.round(s%60)+"s";};
+const fmtGB=x=>x>=1000?(x/1024).toFixed(2)+" TB":Math.round(x)+" GB";
+const money=x=>"$"+Math.round(x).toLocaleString("en-US");
+const num=(v,d)=>{const n=parseFloat(v);return isFinite(n)&&n>0?n:d;};
+
+function getModel(){
+  if(S.model==="custom"){const c=S.cm;return{name:c.name||"Custom model",totalB:c.totalB,activeB:Math.min(c.activeB,c.totalB),moe:c.activeB<c.totalB,L:c.L,H:c.H,D:c.D,mla:c.mla};}
+  return MODELS[S.model]||MODELS.dsv4;
+}
+function getDevice(){
+  if(S.dev==="custom"){const c=S.cd;return{name:c.name||"Custom device",vendor:c.vendor,ram:c.ram,bw:c.bw,tflops:c.tflops,tdp:c.tdp,fp4:c.fp4,tpEff:c.vendor==="nvidia"?TP_NVIDIA:TP_APPLE};}
+  const d=DEVICES[S.dev]||DEVICES.dgx;
+  const v=d.variants[Math.min(S.variant,d.variants.length-1)];
+  return{name:d.name,vendor:d.vendor,ram:v.ram,bw:d.bw,tflops:d.tflops,tdp:d.tdp,fp4:d.fp4,tpEff:d.tpEff,spec:d.spec};
+}
+
+/* ==================== CALC ENGINE (calibrated — do not alter physics) ==================== */
+function calc(){
+  const m=getModel(),d=getDevice(),n=S.n,q=S.quant;
+  const isNV=d.vendor==="nvidia";
+  const bpw=QUANTS[q].bpw;
+  const weights=(m.sizeOverride&&m.sizeOverride[q]!=null)?m.sizeOverride[q]:m.totalB*bpw/8;
+  const activeGB=Math.max(.5,m.activeB*bpw/8);
+  const ctx=S.ctx;
+  const bpe=S.kvq4?.5:2;
+  let kv=2*m.L*m.H*m.D*ctx*bpe/1e9; if(m.mla)kv*=.3;
+  // NVIDIA pools memory across units; Apple runs one copy per machine
+  const tpEff=isNV?(d.tpEff[n]||1):1;
+  const aggBW=d.bw*n*(isNV?tpEff:1);     // aggregate bandwidth: N units × tpEff for NVIDIA
+  const aggTF=d.tflops*n*(isNV?tpEff:1);  // aggregate compute: N units × tpEff for NVIDIA
+  const poolRAM=isNV?d.ram*n:d.ram;
+  const usable=.85*poolRAM;
+  let qb=1; if(q==="q4"&&d.fp4)qb=1.2; if(q==="iq1"||q==="iq2"||q==="iq3")qb=.45;
+  const mtpF=S.mtp?2:1, vllmF=(S.vllm&&isNV)?1.5:1;
+  const hwD=isNV?.5:.4, hwP=isNV?.45:.3;
+  const deg=ctx<=32768?1:Math.max(.3,1-.15*Math.log2(ctx/32768));
+  const ddeg=ctx<=32768?1:Math.max(.5,1-.075*Math.log2(ctx/32768));
+  let decode=(aggBW/activeGB)*hwD*qb*mtpF*vllmF*ddeg;
+  let prefill=(aggTF*1000/(2*m.activeB))*hwP*qb*vllmF*deg;
+  const weightsFit=weights<=usable;
+  const kvFit=(weights+kv)<=usable;
+  const offloaded=!weightsFit;
+  if(offloaded){decode*=.45;prefill*=.45;}
+  const freeRAM=Math.max(0,usable-weights);
+  const maxStreams=kv>0?Math.floor(freeRAM/kv):64;
+  const perReq=decode*Math.max(.2,1-.005*(S.conc-1));
+  const effPrompt=S.pfx?S.prompt*.3:S.prompt;
+  const ttft=effPrompt/Math.max(1e-6,prefill);
+  const genTime=S.gen/Math.max(1e-6,decode);
+  const wps=decode*.75;
+  return{m,d,n,q,isNV,weights,activeGB,ctx,kv,poolRAM,usable,tpEff,decode,prefill,deg,ddeg,
+    weightsFit,kvFit,offloaded,freeRAM,maxStreams,perReq,ttft,genTime,wps,
+    watts:d.tdp*n,effPrompt};
+}
+
+/* ==================== VERIFIED BENCHMARKS ==================== */
+function verifiedFor(){
+  const c=[
+    {t:19.1,ok:()=>S.dev==="dgx"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2",txt:"measured 19.1 t/s on 1× DGX Spark"},
+    {t:55,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.mtp&&S.vllm,txt:"measured 55 t/s on 2× DGX Spark"},
+    {t:40,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.ctx>=500000,txt:"measured 40 t/s at 1M context on 2× DGX Spark"},
+    {t:17,ok:()=>S.dev==="m3ultra"&&getDevice().ram===512&&S.model==="glm52"&&S.quant==="q4",txt:"measured 17 t/s on M3 Ultra 512GB"},
+    {t:56,ok:()=>S.dev==="rtx5090"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2",txt:"measured 56 t/s on RTX 5090 (CPU-offloaded)"}
+  ];
+  for(const b of c){if(b.ok())return{target:b.t,txt:b.txt,match:Math.abs(R.decode-b.t)/b.t<=.15};}
+  return null;
+}
+
+/* ==================== RENDER ==================== */
+function ttftVerdict(t){if(t<1.5)return["Instant","g"];if(t<5)return["Snappy","g"];if(t<15)return["Noticeable pause","a"];if(t<45)return["Long wait","r"];return["Impractical","r"];}
+
+function renderAll(){
+  R=calc();
+  /* quant fit line */
+  const qf=$("quantFit"),qd=$("quantDot");
+  qf.textContent="Model size at "+QUANTS[S.quant].label+": "+fmtGB(R.weights)+" of "+fmtGB(R.usable)+" usable";
+  qd.className="dot "+(R.kvFit?"g":R.weightsFit?"a":"r");
+  /* rail config */
+  $("railConf").textContent=R.n+"× "+R.d.name+" · "+QUANTS[S.quant].label;
+  /* verified */
+  const vb=verifiedFor();
+  if(vb){$("verifiedBadge").classList.add("show");
+    $("verifiedText").textContent=vb.match?("VERIFIED — "+vb.txt+", we calculate "+fmt(R.decode,1)):("Benchmark exists: "+vb.txt+" (at shorter context)");
+  }else $("verifiedBadge").classList.remove("show");
+  /* headline */
+  $("rWps").textContent=fmt(R.wps,1);
+  $("rTps").textContent="= "+fmt(R.decode,1)+" tokens/sec";
+  const pct=Math.min(100,Math.log(1+R.wps)/Math.log(1+150)*100);
+  $("paceFill").style.width=Math.max(2,pct)+"%";
+  $("paceHuman").style.left=(Math.log(5)/Math.log(151)*100)+"%";
+  const ratio=R.wps/4;
+  $("paceX").textContent=ratio>=1?fmt(ratio,1)+"× your reading speed":"slower than reading";
+  $("rPaceNote").textContent=R.wps>=25?"Faster than anyone can read — it will feel instant.":
+    R.wps>=8?"Comfortably faster than you read. It'll feel alive.":
+    R.wps>=3?"About reading pace. Usable, but you'll watch it type.":
+    R.wps>=1?"Slow. Fine for background jobs, frustrating live.":"Painfully slow for interactive use.";
+  /* ttft */
+  $("rTtft").textContent=fmtTime(R.ttft);
+  const[vt,vc]=ttftVerdict(R.ttft);
+  $("rTtftChip").textContent=vt;$("rTtftChip").className="mp-c "+vc;
+  $("rFull").textContent=fmtTime(R.ttft+R.genTime);
+  /* agentic wall */
+  const ac=$("agentCallout");
+  if(S.prompt>=20000){
+    ac.classList.add("show");
+    const steps=20,total=steps*(R.ttft+R.genTime);
+    let t="Every agent step re-reads ~"+fmtTok(S.prompt)+" tokens before it can act — that's "+fmtTime(R.ttft)+" of pure thinking, every step. A "+steps+"-step task ≈ "+fmtTime(total)+" of waiting.";
+    if(S.pfx)t+=" (Prefix caching is already cutting this ~70%.)";
+    else t+=" Prefix caching (in Advanced) could cut the reading ~70%.";
+    $("agentText").textContent=t;
+  }else ac.classList.remove("show");
+  /* split note */
+  const sn=$("splitNote");
+  if(R.n>1){
+    sn.classList.add("show");
+    if(R.isNV){
+      const eff=Math.round(R.tpEff*100);
+      sn.className="split-note show "+(eff>=80?"good":eff>=70?"warn":"warn");
+      $("splitTitle").textContent="SPLIT ACROSS "+R.n+" UNITS — "+eff+"% EFFICIENT";
+      $("splitText").textContent="They pool their memory and act as one machine, but coordinating costs speed — that's the efficiency number. Amber means you're paying a coordination tax: more units let you run BIGGER models, they don't make one answer faster.";
+    }else{
+      sn.className="split-note show info";
+      $("splitTitle").textContent=R.n+" INDEPENDENT MACS — MEMORY NOT SHARED";
+      $("splitText").textContent="Macs can't share memory, so each one runs its own full copy of the model. "+R.n+" Macs serve "+R.n+"× as many people at once — but a single request doesn't get any faster.";
+    }
+  }else sn.classList.remove("show");
+  /* memory bar */
+  const scale=Math.max(R.usable,R.weights+R.kv);
+  $("memW").style.width=Math.min(100,R.weights/scale*100)+"%";
+  $("memK").style.width=Math.min(100,R.kv/scale*100)+"%";
+  $("memOver").style.width=(!R.kvFit)?Math.min(100,(R.weights+R.kv-R.usable)/scale*100)+"%":"0%";
+  $("legW").textContent="model "+fmtGB(R.weights);
+  $("legK").textContent="conversation "+fmtGB(R.kv);
+  $("legFree").textContent="usable "+fmtGB(R.usable)+(R.isNV&&R.n>1?" (pooled)":"");
+  const mn=$("memNote");
+  if(!R.weightsFit){mn.className="mem-note r";mn.textContent="✗ Model doesn't fit — layers would spill to the CPU, which is why the speed above is heavily penalized. Add units, choose more memory, or compress harder.";}
+  else if(!R.kvFit){mn.className="mem-note a";mn.textContent="△ Model fits, but the conversation memory at this context length overflows. Shorten the context or turn on KV Q4 in Advanced.";}
+  else{mn.className="mem-note g";mn.textContent="✓ Fits comfortably — "+fmtGB(R.freeRAM-R.kv)+" to spare.";}
+  /* scenarios */
+  const pre=R.prefill,dec=R.decode,pfxF=S.pfx?.3:1;
+  $("sc1t").textContent=fmtTime(1500/pre+350/dec);
+  $("sc2t").textContent=fmtTime(4000/pre+1200/dec);
+  $("sc3t").textContent=fmtTime(60000*pfxF/pre+800/dec);
+  $("sc4t").textContent=fmtTime(30000*pfxF/pre+600/dec);
+  /* raw */
+  $("rdDec").textContent=fmt(R.decode,1)+" t/s";
+  $("rdPre").textContent=fmt(R.prefill,0)+" t/s";
+  $("rdW").textContent=fmtGB(R.weights);
+  $("rdKv").textContent=fmtGB(R.kv);
+  $("rdAct").textContent=fmt(R.activeGB,1)+" GB";
+  $("rdDeg").textContent=Math.round(R.deg*100)+"%";
+  $("rdStreams").textContent=R.maxStreams<=0?"0 — overflows":R.maxStreams+" users";
+  $("rdConc").textContent=fmt(R.perReq,1)+" t/s";
+  $("concNote").textContent=S.conc>1?("≈"+fmt(R.perReq,1)+" t/s each"+(S.conc>Math.max(1,R.maxStreams)?" — beyond memory limit, requests will queue":"")):"";
+  /* sim + cost mirrors */
+  $("simChip").textContent=R.n+"× "+R.d.name+" · "+R.m.name+" · "+QUANTS[S.quant].label+" · "+USES[S.use].name+(S.harness!=="bare"?" + "+HARNESSES[S.harness].name:"");
+  $("costChip").textContent=R.n+"× "+R.d.name+" · "+R.m.name+" "+QUANTS[S.quant].label;
+  renderCost();
+  writeHash();
+}
+
+/* ==================== COST ==================== */
+let costCloudKey="deepseek";
+function buildCostControls(){
+  const cs=$("cCountry");
+  cs.textContent="";
+  Object.keys(ELECTRICITY).forEach(k=>{const o=el("option",null,ELECTRICITY[k].name+" — $"+ELECTRICITY[k].kwh+"/kWh");o.value=k;cs.appendChild(o);});
+  cs.value="US";
+  cs.addEventListener("change",()=>renderCost());
+  /* cloud list */
+  const cl=$("cloudList");cl.textContent="";
+  const sorted=Object.keys(CLOUD).sort((a,b)=>CLOUD[a].blend-CLOUD[b].blend);
+  sorted.forEach(k=>{
+    const c=CLOUD[k];
+    const row=el("label","opt");row.style.cursor="pointer";row.style.padding="8px 10px";row.style.borderBottom="1px solid var(--line)";row.style.alignItems="center";row.style.gap="10px";
+    const cb=el("input");cb.type="radio";cb.name="cloudTier";cb.value=k;cb.style.width="16px";cb.style.height="16px";cb.style.flex="none";cb.style.accentColor="var(--acc)";
+    if(k===costCloudKey)cb.checked=true;
+    cb.addEventListener("change",()=>{costCloudKey=k;renderCost();});
+    const info=el("div");
+    info.appendChild(el("div","o-t",c.name));
+    info.appendChild(el("div","o-d","$"+c.in+" / $"+c.out+" per 1M in/out"));
+    row.appendChild(cb);row.appendChild(info);
+    cl.appendChild(row);
+  });
+}
+function renderCost(){
+  if(!R)return;
+  const country=ELECTRICITY[$("cCountry").value]||ELECTRICITY.US;
+  const kwh=country.kwh,hours=Math.min(24,num($("cHours").value,4));
+  const tier=CLOUD[costCloudKey]||CLOUD.deepseek;
+  const monthlyTokens=hours*3600*30*R.decode*.5;
+  /* electricity only — no hardware purchase */
+  const elecMo=R.watts/1000*hours*30*kwh;
+  const localPerM=monthlyTokens>0?elecMo/monthlyTokens*1e6:0;
+  const cloudMo=monthlyTokens/1e6*tier.blend;
+  $("coLocal").textContent="$"+fmt(localPerM,3);
+  $("coCloud").textContent="$"+fmt(tier.blend,2)+" / 1M";
+  $("coCloudName").textContent=tier.name+" ($"+tier.in+"/"+tier.out+" in/out)";
+  $("coLocalMo").textContent=money(elecMo)+" / mo";
+  $("coCloudMo").textContent=money(cloudMo)+" / mo";
+  const mx=Math.max(elecMo,cloudMo,1);
+  $("barLocal").style.width=Math.max(2,elecMo/mx*100)+"%";
+  $("barCloud").style.width=Math.max(2,cloudMo/mx*100)+"%";
+  $("coTokens").textContent=fmtTok(monthlyTokens);
+}
+
+/* ==================== UI BUILD ==================== */
+function effectivePrompt(useKey){
+  const u=USES[useKey];if(!u)return 0;
+  const h=HARNESSES[S.harness]||HARNESSES.light;
+  return u.base+h.overhead;
+}
+function buildUseCards(){
+  const g=$("useGrid");
+  g.textContent="";
+  Object.keys(USES).forEach(k=>{
+    const u=USES[k],b=el("button","use-card"+(S.use===k?" on":""));
+    b.dataset.use=k;
+    b.appendChild(el("div","uc-name",u.name));
+    b.appendChild(el("div","uc-desc",u.desc));
+    const eff=effectivePrompt(k);
+    b.appendChild(el("div","uc-toks","reads ~"+fmtTok(eff)+" · writes ~"+fmtTok(u.gen)));
+    b.addEventListener("click",()=>{
+      S.use=k;S.prompt=effectivePrompt(k);S.gen=u.gen;S.ctx=u.ctx;
+      g.querySelectorAll(".use-card").forEach(c=>c.classList.toggle("on",c.dataset.use===k));
+      $("customUsePanel").classList.toggle("show",k==="custom");
+      syncCustomSliders();renderAll();
+    });
+    g.appendChild(b);
+  });
+}
+function buildHarnessRow(){
+  const row=$("harnessRow");row.textContent="";
+  Object.keys(HARNESSES).forEach(k=>{
+    const h=HARNESSES[k],b=el("button","n-btn"+(S.harness===k?" on":""),h.name);
+    b.style.width="auto";b.style.padding="9px 14px";b.style.fontSize="12px";b.style.lineHeight="1.3";b.style.whiteSpace="normal";
+    b.addEventListener("click",()=>{
+      S.harness=k;
+      row.querySelectorAll(".n-btn").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on");
+      $("harnessDesc").textContent=h.desc+(h.overhead>0?" (adds ~"+fmtTok(h.overhead)+" tokens to every turn)":"");
+      if(S.use!=="custom"){S.prompt=effectivePrompt(S.use);syncCustomSliders();buildUseCards();}
+      renderAll();
+    });
+    row.appendChild(b);
+  });
+  const h=HARNESSES[S.harness];
+  $("harnessDesc").textContent=h.desc+(h.overhead>0?" (adds ~"+fmtTok(h.overhead)+" tokens to every turn)":"");
+}
+function syncCustomSliders(){
+  $("wPrompt").value=Math.log2(S.prompt);$("wGen").value=Math.log2(S.gen);$("wCtx").value=Math.log2(S.ctx);
+  $("wPromptV").textContent=fmtTok(S.prompt)+" tokens";$("wGenV").textContent=fmtTok(S.gen)+" tokens";$("wCtxV").textContent=fmtTok(S.ctx)+" tokens";
+}
+function buildModelSel(){
+  const s=$("modelSel");
+  const groups=[["Popular",["dsv4","glm52","glm52air","dsv3","qwen235","gptoss"]],
+    ["More models",["glm45","qwen72","qwen27","llama120","llama70","mistral"]],
+    ["New — specs estimated",["minimax3","kimik3","kimik26"]],
+    ["Bring your own",["custom"]]];
+  groups.forEach(([label,keys])=>{
+    const og=el("optgroup");og.label=label;
+    keys.forEach(k=>{const o=el("option",null,MODELS[k].name+(MODELS[k].est?" (est.)":""));o.value=k;og.appendChild(o);});
+    s.appendChild(og);
+  });
+  s.value=S.model;
+  s.addEventListener("change",()=>{S.model=s.value;renderModelMeta();renderAll();});
+  renderModelMeta();
+}
+function renderModelMeta(){
+  const m=getModel(),mb=$("modelBadges");mb.textContent="";
+  if(S.model!=="custom"){
+    mb.appendChild(el("span","chip",m.totalB+"B total"));
+    mb.appendChild(el("span","chip acc",m.activeB+"B active / token"));
+    mb.appendChild(el("span","chip",m.moe?"MoE — only a slice works per word":"Dense — whole model works per word"));
+    if(m.mla)mb.appendChild(el("span","chip","MLA memory compression"));
+    if(m.est)mb.appendChild(el("span","chip est","ESTIMATED SPECS"));
+  }
+  $("modelDesc").textContent=m.desc||"";
+  $("customModelPanel").classList.toggle("show",S.model==="custom");
+}
+function buildQuantGrid(){
+  const g=$("quantGrid");
+  Object.keys(QUANTS).forEach(k=>{
+    const b=el("button","q-btn"+(S.quant===k?" on":""));b.dataset.q=k;
+    b.appendChild(el("div","q-name",QUANTS[k].label));
+    b.appendChild(el("div","q-q",QUANTS[k].q+" quality"));
+    b.addEventListener("click",()=>{S.quant=k;g.querySelectorAll(".q-btn").forEach(x=>x.classList.toggle("on",x.dataset.q===k));renderAll();});
+    g.appendChild(b);
+  });
+}
+function buildDevSel(){
+  const s=$("devSel");
+  const groups=[["NVIDIA — memory pools across units",["dgx","rtx5090","rtx4090","rtx3090","rtx6000"]],
+    ["Apple — one copy per machine",["m5ultra","m3ultra","m2studio","m2pro","mbp","mini"]],
+    ["Bring your own",["custom"]]];
+  groups.forEach(([label,keys])=>{
+    const og=el("optgroup");og.label=label;
+    keys.forEach(k=>{const o=el("option",null,DEVICES[k].name+(DEVICES[k].spec?" — unreleased":""));o.value=k;og.appendChild(o);});
+    s.appendChild(og);
+  });
+  s.value=S.dev;
+  s.addEventListener("change",()=>{S.dev=s.value;S.variant=(DEVICES[s.value].variants||[{ }]).length-1;buildVariantSel();buildCountRow();renderDevMeta();renderAll();});
+  buildVariantSel();buildCountRow();renderDevMeta();
+}
+function buildVariantSel(){
+  const d=DEVICES[S.dev],wrap=$("devVarWrap"),s=$("devVar");
+  s.textContent="";
+  if(d&&!d.custom&&d.variants.length>1){
+    wrap.classList.remove("hidden");
+    d.variants.forEach((v,i)=>{const o=el("option",null,v.ram+" GB");o.value=i;s.appendChild(o);});
+    s.value=Math.min(S.variant,d.variants.length-1);
+  }else wrap.classList.add("hidden");
+}
+function buildCountRow(){
+  const row=$("countRow");row.textContent="";
+  const isApple=(getDevice().vendor==="apple");
+  const counts=isApple?[1,2,3,4]:[1,2,3,4,5,6,7,8];
+  counts.forEach(n=>{
+    const b=el("button","n-btn"+(S.n===n?" on":""),n+"×");
+    b.addEventListener("click",()=>{S.n=n;row.querySelectorAll(".n-btn").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderDevMeta();renderAll();});
+    row.appendChild(b);
+  });
+  if(isApple&&S.n>4){S.n=4;buildCountRow();}
+}
+function renderDevMeta(){
+  const d=getDevice();
+  $("devBlurb").textContent=(DEVICES[S.dev]&&DEVICES[S.dev].blurb)||"";
+  const isNV=d.vendor==="nvidia";
+  $("dsRam").textContent=isNV?fmtGB(d.ram*S.n):fmtGB(d.ram);
+  $("dsRamS").textContent=isNV?(S.n>1?"pooled across "+S.n+" units":"in one box"):"per Mac — not shared";
+  $("dsBw").textContent=fmt(d.bw,0)+" GB/s";
+  $("dsTf").textContent=fmt(d.tflops,0)+" TF";
+  $("dsPow").textContent=fmt(d.watts*S.n,0)+" W";
+  $("customDevPanel").classList.toggle("show",S.dev==="custom");
+  if(d.spec){const b=$("devBlurb");b.textContent="⚠ "+b.textContent;}
+}
+
+/* ==================== SIMULATOR ==================== */
+const SIM_SCEN={
+  short:{user:"What are the three biggest risks of running everything in one cloud?",words:60,
+    text:"1. Vendor lock-in — once your whole stack speaks one API, switching becomes a rewrite, not a config change.\\n\\n2. Rate limits at scale — cloud APIs throttle exactly when you need them most: during launches, batch jobs, or traffic spikes.\\n\\n3. Privacy drift — data that starts in your database ends up in training sets, logs, or breach dumps. You can't audit what you don't control."},
+  medium:{user:"Write a one-paragraph summary of why local AI inference is becoming viable for small teams.",words:140,
+    text:"Local AI inference has crossed a practical threshold. Open-weight models like DeepSeek V4 Flash now match or exceed closed models on most benchmarks, while requiring only 13 billion active parameters per token — small enough to run on a desktop device. The economics flip at moderate usage: a one-time hardware purchase replaces a growing monthly API bill, with the added benefits of complete data privacy, no rate limits, and full control over the model and its outputs. For teams doing agentic work with heavy context injection, the savings compound faster because every agent step burns input tokens that cloud APIs charge for. The remaining gap — raw generation speed on the largest models — is closing as hardware like the DGX Spark brings datacenter-class compute and unified memory to the desktop."},
+  long:{user:"Write a detailed analysis of the trade-offs between cloud and local AI for a team building autonomous agents.",words:320,
+    text:"The trade-off between cloud and local AI is not the simple cost comparison most teams assume. The real decision involves five interlocking factors that compound in ways that aren't obvious until you're deep in production.\\n\\nFirst, cost structure. Cloud APIs charge per token, and agent workloads are token-hungry — each step re-reads the full system prompt, tool definitions, and accumulated context. A single agent task can consume 60,000 input tokens before generating a single output token. At frontier API prices, that's $0.90 per step, before the model writes a word. A 100-step task costs $90 in input alone. Local hardware has zero marginal cost per token — only electricity.\\n\\nSecond, latency. Cloud APIs add network round-trips, queue delays, and rate-limit backoff to every request. For interactive use, this is annoying. For agent loops that make hundreds of sequential calls, it's a multiplier on total wall-clock time that can make a 2-minute task take 15.\\n\\nThird, privacy and control. This isn't just about compliance — it's about capability. When your data never leaves your network, you can use AI on code, documents, and conversations that would be irresponsible or impossible to send to a third party. This unlocks use cases that cloud simply cannot serve.\\n\\nFourth, reliability. Cloud APIs go down, change their models, deprecate features, and change pricing with no notice. Local hardware does exactly what it did yesterday, forever.\\n\\nFifth, the speed gap is closing. The perception that local is always slower is outdated. For agentic workloads where prefill dominates, high-compute local hardware can actually be faster end-to-end than a cloud API with network latency.\\n\\nThe recommendation: for teams doing serious agent work, own enough local compute to handle your baseline load, and use cloud as an overflow valve for spikes. The hardware pays for itself in token savings within months, not years."}
+};
+let simTimer=null,simScen="short";
+function buildSpeedRef(){
+  const speeds=[
+    {range:"1–3 t/s",feel:"Painful. You read faster than the output. Fine for background jobs, agonising for live use.",cls:"bad"},
+    {range:"3–5 t/s",feel:"Slow but usable for coding. Patience required — you'll watch every word appear.",cls:"bad"},
+    {range:"5–8 t/s",feel:"About reading pace. Usable for interactive chat with noticeable delay on longer outputs.",cls:"warn"},
+    {range:"8–15 t/s",feel:"Comfortable for interactive chat. Feels like a fast typist. Still noticeable on long outputs.",cls:"warn"},
+    {range:"15–25 t/s",feel:"Smooth. Good for agentic workflows and coding. Delay becomes barely noticeable.",cls:"good"},
+    {range:"25–40 t/s",feel:"Very smooth. Near-cloud feel for most tasks. Agentic loops feel responsive.",cls:"good"},
+    {range:"40–60 t/s",feel:"Fast. Minimal waiting. Hard to tell it's local. Multi-token drafting territory.",cls:"good"},
+    {range:"60–100 t/s",feel:"Very fast. Output appears almost as fast as you can scan it.",cls:"good"},
+    {range:"100–150 t/s",feel:"Extremely fast. Faster than any human can process. Batch processing sweet spot.",cls:"good"},
+    {range:"150+ t/s",feel:"Batch-grade throughput. Individual words blur together. Why some people chase maximum t/s — for bulk processing, classification, and parallel agent workloads, this is where local destroys cloud on cost.",cls:"good"}
+  ];
+  const tb=$("speedRefBody");tb.textContent="";
+  speeds.forEach(s=>{
+    const tr=el("tr");
+    const td1=el("td","",s.range);td1.style.fontFamily="var(--mono)";td1.style.padding="6px 8px";td1.style.borderBottom="1px solid var(--line)";td1.style.color="var(--"+s.cls+")";td1.style.fontWeight="600";td1.style.whiteSpace="nowrap";
+    const td2=el("td","",s.feel);td2.style.padding="6px 8px";td2.style.borderBottom="1px solid var(--line)";td2.style.color="var(--tx2)";td2.style.lineHeight="1.45";
+    tr.appendChild(td1);tr.appendChild(td2);tb.appendChild(tr);
+  });
+}
+function stopSim(){if(simTimer){clearInterval(simTimer);simTimer=null;}}
+function runSim(){
+  stopSim();if(!R)return;
+  const sc=SIM_SCEN[simScen];
+  $("simUserText").textContent=sc.user;
+  $("simOut").textContent="";$("simStats").classList.remove("show");$("simContext").classList.remove("show");
+  $("simRun").disabled=true;
+  $("simStop").classList.remove("hidden");
+  const ttft=Math.max(.35,R.ttft),wps=Math.max(.3,R.wps);
+  const think=$("simThink");
+  think.classList.add("show");
+  const fill=$("simThinkFill"),ct=$("simThinkCt"),skip=$("simSkip");
+  fill.style.width="0%";skip.style.display="none";
+  $("simSkipDecode").classList.add("hidden");
+  let skipped=false,decSkipped=false,t0=performance.now();
+  const words=sc.text.split(/(\s+)/);
+  const finish=()=>{
+    clearInterval(simTimer);simTimer=null;
+    $("simStop").classList.add("hidden");
+    $("simSkipDecode").classList.add("hidden");
+    const total=(performance.now()-t0)/1000;
+    $("ssTtft").textContent=fmtTime(R.ttft);
+    $("ssWps").textContent=fmt(R.wps,1)+" w/s";
+    $("ssWpsS").textContent=R.wps>=4?fmt(R.wps/4,1)+"× your reading speed":"below reading speed";
+    $("ssTotal").textContent=fmtTime(total);
+    $("simStats").classList.add("show");
+    const ctx=$("simContext");
+    ctx.textContent="To put that in context: you read about 4 words per second. This machine writes at "+fmt(R.wps,1)+". At this speed it could draft a short email in "+fmtTime(150/R.wps)+", or 'read' a 100-page PDF (~60K tokens) in "+fmtTime(60000/R.prefill)+".";
+    ctx.classList.add("show");
+    $("simRun").disabled=false;$("simRun").textContent="↻ Run again";
+  };
+  const startWriting=()=>{
+    think.classList.remove("show");
+    const out=$("simOut"),caret=el("span","caret");out.appendChild(caret);
+    let i=0,acc=0,last=performance.now();
+    $("simSkipDecode").classList.remove("hidden");
+    simTimer=setInterval(()=>{
+      const now=performance.now(),dt=(now-last)/1000;last=now;
+      if(decSkipped){
+        out.textContent=sc.text;caret.remove();finish();return;
+      }
+      acc+=wps*dt;
+      const chunk=Math.floor(acc);acc-=chunk;
+      for(let k=0;k<chunk&&i<words.length;k++){
+        out.insertBefore(document.createTextNode(words[i]),caret);i++;
+      }
+      if(i>=words.length){caret.remove();finish();}
+    },40);
+  };
+  simTimer=setInterval(()=>{
+    const el1=(performance.now()-t0)/1000,p=Math.min(1,el1/ttft);
+    fill.style.width=(p*100)+"%";
+    ct.textContent=fmtTok(Math.round(p*R.effPrompt))+" / "+fmtTok(R.effPrompt)+" tokens read · "+fmtTime(el1)+" elapsed"+(R.ttft>8?" — this is real time":"");
+    if(el1>5)skip.style.display="inline-block";
+    if(p>=1||skipped){clearInterval(simTimer);startWriting();}
+  },50);
+  skip.onclick=()=>{skipped=true;};
+  $("simSkipDecode").onclick=()=>{decSkipped=true;};
+  $("simStop").onclick=()=>{stopSim();$("simStop").classList.add("hidden");$("simSkipDecode").classList.add("hidden");$("simRun").disabled=false;$("simRun").textContent="▶ Run it";$("simThink").classList.remove("show");};
+}
+
+/* ==================== SIM QUICK-SWAP ==================== */
+function buildSimQuickSwap(){
+  const ds=$("simDev"),ms=$("simModel"),qs=$("simQuant"),vs=$("simVar"),cr=$("simCountRow");
+  /* device */
+  ds.textContent="";ms.textContent="";qs.textContent="";
+  const dg=el("optgroup");dg.label="NVIDIA";
+  Object.keys(DEVICES).filter(k=>DEVICES[k].vendor==="nvidia"&&!DEVICES[k].custom).forEach(k=>{const o=el("option",null,DEVICES[k].name);o.value=k;dg.appendChild(o);});
+  const ag=el("optgroup");ag.label="Apple";
+  Object.keys(DEVICES).filter(k=>DEVICES[k].vendor==="apple").forEach(k=>{const o=el("option",null,DEVICES[k].name+(DEVICES[k].spec?" (unreleased)":""));o.value=k;ag.appendChild(o);});
+  ds.appendChild(dg);ds.appendChild(ag);ds.value=S.dev;
+  /* model */
+  const mg=el("optgroup");mg.label="Popular";
+  ["dsv4","glm52","glm52air","dsv3","qwen235","gptoss","minimax3","kimik3","kimik26","glm45","qwen72","qwen27","llama120","llama70","mistral"].forEach(k=>{if(MODELS[k]){const o=el("option",null,MODELS[k].name+(MODELS[k].est?" (est.)":""));o.value=k;mg.appendChild(o);}});
+  ms.appendChild(mg);ms.value=S.model;
+  /* quant */
+  Object.keys(QUANTS).forEach(k=>{const o=el("option",null,QUANTS[k].label+" ("+QUANTS[k].q+")");o.value=k;qs.appendChild(o);});
+  qs.value=S.quant;
+  $("simMtp").checked=S.mtp;$("simVllm").checked=S.vllm;
+  function syncSimVar(){
+    const d=DEVICES[S.dev];if(!d||d.custom){$("simVarRow").classList.add("hidden");return;}
+    if(d.variants.length>1){$("simVarRow").classList.remove("hidden");vs.textContent="";
+      d.variants.forEach((v,i)=>{const o=el("option",null,v.ram+" GB");o.value=i;vs.appendChild(o);});
+      vs.value=Math.min(S.variant,d.variants.length-1);
+    }else $("simVarRow").classList.add("hidden");
+  }
+  function syncSimCount(){
+    cr.textContent="";const d=getDevice();const isApple=d.vendor==="apple";
+    const counts=isApple?[1,2,3,4]:[1,2,3,4,5,6,7,8];
+    counts.forEach(n=>{const b=el("button","n-btn"+(S.n===n?" on":""),n+"×");
+      b.addEventListener("click",()=>{S.n=n;cr.querySelectorAll(".n-btn").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderAll();});
+      cr.appendChild(b);});
+  }
+  syncSimVar();syncSimCount();
+  ds.addEventListener("change",()=>{S.dev=ds.value;S.variant=0;syncSimVar();syncSimCount();renderAll();});
+  ms.addEventListener("change",()=>{S.model=ms.value;renderAll();});
+  qs.addEventListener("change",()=>{S.quant=qs.value;renderAll();});
+  vs.addEventListener("change",()=>{S.variant=parseInt(vs.value)||0;renderAll();});
+  $("simMtp").addEventListener("change",e=>{S.mtp=e.target.checked;renderAll();});
+  $("simVllm").addEventListener("change",e=>{S.vllm=e.target.checked;renderAll();});
+}
+
+/* ==================== HASH / SHARE ==================== */
+function writeHash(){
+  const p=new URLSearchParams();
+  p.set("tab",S.tab);p.set("u",S.use);p.set("h",S.harness);p.set("m",S.model);p.set("q",S.quant);
+  p.set("d",S.dev);p.set("n",S.n);p.set("v",S.variant);
+  p.set("pt",Math.round(S.prompt));p.set("gt",Math.round(S.gen));p.set("cx",Math.round(S.ctx));
+  p.set("mtp",S.mtp?1:0);p.set("vl",S.vllm?1:0);p.set("kv",S.kvq4?1:0);p.set("pfx",S.pfx?1:0);p.set("c",S.conc);
+  if(S.model==="custom"){p.set("cmt",S.cm.totalB);p.set("cma",S.cm.activeB);p.set("cml",S.cm.L);p.set("cmh",S.cm.H);p.set("cmd",S.cm.D);p.set("cmmla",S.cm.mla?1:0);}
+  if(S.dev==="custom"){p.set("cdr",S.cd.ram);p.set("cdb",S.cd.bw);p.set("cdt",S.cd.tflops);p.set("cdw",S.cd.tdp);p.set("cdty",S.cd.vendor);p.set("cdf",S.cd.fp4?1:0);}
+  history.replaceState(null,"","#"+p.toString());
+}
+function applyHash(){
+  if(!location.hash)return;
+  let p;try{p=new URLSearchParams(location.hash.slice(1));}catch(e){return;}
+  const g=k=>p.get(k);
+  if(USES[g("u")])S.use=g("u");
+  if(HARNESSES[g("h")])S.harness=g("h");
+  if(MODELS[g("m")])S.model=g("m");
+  if(QUANTS[g("q")])S.quant=g("q");
+  if(DEVICES[g("d")])S.dev=g("d");
+  const nn=parseInt(g("n"));if([1,2,3,4,8].includes(nn))S.n=nn;
+  const vv=parseInt(g("v"));if(vv>=0)S.variant=vv;
+  if(num(g("pt"),0))S.prompt=Math.min(2e6,num(g("pt"),S.prompt));
+  if(num(g("gt"),0))S.gen=Math.min(1e5,num(g("gt"),S.gen));
+  if(num(g("cx"),0))S.ctx=Math.min(2e6,Math.max(1024,num(g("cx"),S.ctx)));
+  S.mtp=g("mtp")==="1";S.vllm=g("vl")==="1";S.kvq4=g("kv")==="1";S.pfx=g("pfx")==="1";
+  const cc=parseInt(g("c"));if(cc>=1&&cc<=32)S.conc=cc;
+  if(S.model==="custom"){S.cm.totalB=num(g("cmt"),70);S.cm.activeB=num(g("cma"),S.cm.totalB);S.cm.L=num(g("cml"),80);S.cm.H=num(g("cmh"),8);S.cm.D=num(g("cmd"),128);S.cm.mla=g("cmmla")==="1";}
+  if(S.dev==="custom"){S.cd.ram=num(g("cdr"),64);S.cd.bw=num(g("cdb"),500);S.cd.tflops=num(g("cdt"),100);S.cd.tdp=num(g("cdw"),300);if(g("cdty")==="apple")S.cd.vendor="apple";S.cd.fp4=g("cdf")==="1";}
+  const tab=g("tab");if(["plan","sim","cost"].includes(tab))switchTab(tab);
+}
+function syncControls(){
+  $("modelSel").value=S.model;renderModelMeta();
+  $("quantGrid").querySelectorAll(".q-btn").forEach(x=>x.classList.toggle("on",x.dataset.q===S.quant));
+  $("useGrid").querySelectorAll(".use-card").forEach(c=>c.classList.toggle("on",c.dataset.use===S.use));
+  $("customUsePanel").classList.toggle("show",S.use==="custom");syncCustomSliders();
+  $("devSel").value=S.dev;buildVariantSel();buildCountRow();renderDevMeta();
+  $("optMtp").checked=S.mtp;$("optVllm").checked=S.vllm;$("optKv").checked=S.kvq4;$("optPfx").checked=S.pfx;
+  $("concVal").textContent=S.conc;
+  $("cmTotal").value=S.cm.totalB;$("cmActive").value=S.cm.activeB;$("cmL").value=S.cm.L;$("cmH").value=S.cm.H;$("cmD").value=S.cm.D;$("cmMla").checked=S.cm.mla;
+  $("cdRam").value=S.cd.ram;$("cdBw").value=S.cd.bw;$("cdTf").value=S.cd.tflops;$("cdTdp").value=S.cd.tdp;$("cdType").value=S.cd.vendor;$("cdFp4").checked=S.cd.fp4;
+}
+
+/* ==================== TABS / THEME ==================== */
+function switchTab(t){
+  S.tab=t;
+  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  ["plan","sim","cost"].forEach(k=>$("tab-"+k).classList.toggle("hidden",k!==t));
+  if(t!=="sim")stopSim();
+  writeHash();
+}
+function setTheme(t){
+  document.documentElement.dataset.theme=t;
+  try{localStorage.setItem("laisp-theme",t);}catch(e){}
+}
+
+/* ==================== INIT ==================== */
+function init(){
+  let theme="dark";
+  try{theme=localStorage.getItem("laisp-theme")||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");}catch(e){}
+  setTheme(theme);
+  $("themeBtn").addEventListener("click",()=>{const cur=document.documentElement.dataset.theme==="dark"?"light":"dark";setTheme(cur);});
+  document.querySelectorAll(".tab-btn").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
+  buildUseCards();buildHarnessRow();buildModelSel();buildQuantGrid();buildDevSel();
+  /* custom workload sliders */
+  const upd=()=>{S.prompt=Math.round(Math.pow(2,parseFloat($("wPrompt").value)));S.gen=Math.round(Math.pow(2,parseFloat($("wGen").value)));S.ctx=Math.round(Math.pow(2,parseFloat($("wCtx").value)));syncCustomSliders();renderAll();};
+  ["wPrompt","wGen","wCtx"].forEach(id=>$(id).addEventListener("input",upd));
+  /* variant */
+  $("devVar").addEventListener("change",e=>{S.variant=parseInt(e.target.value)||0;renderDevMeta();renderAll();});
+  /* advanced */
+  $("optMtp").addEventListener("change",e=>{S.mtp=e.target.checked;renderAll();});
+  $("optVllm").addEventListener("change",e=>{S.vllm=e.target.checked;renderAll();});
+  $("optKv").addEventListener("change",e=>{S.kvq4=e.target.checked;renderAll();});
+  $("optPfx").addEventListener("change",e=>{S.pfx=e.target.checked;renderAll();});
+  $("concMinus").addEventListener("click",()=>{S.conc=Math.max(1,S.conc-1);$("concVal").textContent=S.conc;renderAll();});
+  $("concPlus").addEventListener("click",()=>{S.conc=Math.min(32,S.conc+1);$("concVal").textContent=S.conc;renderAll();});
+  /* custom model */
+  const cmUpd=()=>{S.cm.name=$("cmName").value.slice(0,40);S.cm.totalB=num($("cmTotal").value,70);S.cm.activeB=num($("cmActive").value,S.cm.totalB);S.cm.L=num($("cmL").value,80);S.cm.H=num($("cmH").value,8);S.cm.D=num($("cmD").value,128);S.cm.mla=$("cmMla").checked;renderAll();};
+  ["cmName","cmTotal","cmActive","cmL","cmH","cmD"].forEach(id=>$(id).addEventListener("input",cmUpd));
+  $("cmMla").addEventListener("change",cmUpd);
+  /* custom device */
+  const cdUpd=()=>{S.cd.name=$("cdName").value.slice(0,40);S.cd.ram=num($("cdRam").value,64);S.cd.bw=num($("cdBw").value,500);S.cd.tflops=num($("cdTf").value,100);S.cd.tdp=num($("cdTdp").value,300);S.cd.vendor=$("cdType").value;S.cd.fp4=$("cdFp4").checked;buildCountRow();renderDevMeta();renderAll();};
+  ["cdName","cdRam","cdBw","cdTf","cdTdp"].forEach(id=>$(id).addEventListener("input",cdUpd));
+  $("cdType").addEventListener("change",cdUpd);$("cdFp4").addEventListener("change",cdUpd);
+  /* sim */
+  document.querySelectorAll(".sp-btn").forEach(b=>b.addEventListener("click",()=>{
+    simScen=b.dataset.scen;document.querySelectorAll(".sp-btn").forEach(x=>x.classList.toggle("on",x===b));stopSim();
+    $("simOut").textContent="";$("simThink").classList.remove("show");$("simStats").classList.remove("show");$("simContext").classList.remove("show");$("simRun").disabled=false;$("simRun").textContent="▶ Run it";
+  }));
+  $("simRun").addEventListener("click",runSim);
+  $("simEdit").addEventListener("click",()=>switchTab("plan"));
+  /* sim quick-swap */
+  buildSimQuickSwap();
+  buildSpeedRef();
+  /* cost */
+  buildCostControls();
+  $("cHours").addEventListener("input",renderCost);
+  /* share */
+  $("shareBtn").addEventListener("click",()=>{
+    const url=location.href;
+    const done=()=>{const t=$("toast");t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200);};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(done).catch(done);}
+    else done();
+  });
+  applyHash();
+  syncControls();
+  renderAll();
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+.DS_Store
+.*_status.txt
+*_status.txt
+kimi_*.py
+KIMI_*.md
+BUILD_PROMPT.md
+index-v1.html
+index-v2.html
+index-v3-truncated.html

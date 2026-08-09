@@ -387,7 +387,7 @@ footer{border-top:1px solid var(--line);padding:26px 22px 40px;text-align:center
 
       <p class="field-label" style="margin-top:20px">Compression ("quantization")</p>
       <div class="quant-grid" id="quantGrid"></div>
-      <div class="note-box"><b>Q4 is the sweet spot</b> — near-lossless quality at half the size. A bigger model at Q4 usually beats a smaller model at full precision. IQ1–IQ3 squeeze much smaller but run <b>slower</b> on today's software — only worth it when nothing else fits.</div>
+      <div class="note-box"><b>Q4 is the sweet spot</b> — near-lossless quality at half the size. A smarter model that is quantised is usually better than a smaller full precision model. Very low quants (Q1 and 2 usually) squeeze much smaller and can be slower, but chosen well can still be great.</div>
       <div class="fit-line"><span class="dot g" id="quantDot"></span><span id="quantFit" class="mono"></span></div>
     </div>
 
@@ -782,7 +782,7 @@ const ELECTRICITY={
 };
 
 /* ==================== STATE ==================== */
-const S={use:"chat",harness:"light",model:"dsv4",quant:"q4",dev:"dgx",n:2,variant:0,
+const S={use:"agent",harness:"typical",model:"dsv4",quant:"q4",dev:"dgx",n:1,variant:0,
   prompt:2300,gen:200,ctx:4096,mtp:false,vllm:false,kvq4:false,pfx:false,conc:1,
   cm:{name:"My Model",totalB:70,activeB:70,L:80,H:8,D:128,mla:false},
   cd:{name:"My Rig",ram:64,bw:500,tflops:100,tdp:300,vendor:"nvidia",fp4:false}};
@@ -955,7 +955,7 @@ function renderAll(){
 }
 
 /* ==================== COST ==================== */
-let costCloudKey="deepseek";
+let costCloudKey="claude";
 function buildCostControls(){
   const cs=$("cCountry");
   cs.textContent="";
@@ -982,7 +982,7 @@ function renderCost(){
   if(!R)return;
   const country=ELECTRICITY[$("cCountry").value]||ELECTRICITY.US;
   const kwh=country.kwh,hours=Math.min(24,num($("cHours").value,4));
-  const tier=CLOUD[costCloudKey]||CLOUD.deepseek;
+  const tier=CLOUD[costCloudKey]||CLOUD.claude;
   const monthlyTokens=hours*3600*30*R.decode*.5;
   /* electricity only — no hardware purchase */
   const elecMo=R.watts/1000*hours*30*kwh;

@@ -317,11 +317,6 @@ footer{border-top:1px solid var(--line);padding:26px 22px 40px;text-align:center
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="1" y="12" width="12" height="3" rx="1.5" fill="var(--acc)"/><rect x="1" y="7" width="16" height="3" rx="1.5" fill="var(--acc)" opacity=".65"/><rect x="1" y="2" width="8" height="3" rx="1.5" fill="var(--acc)" opacity=".35"/></svg>
     LOCAL&nbsp;AI&nbsp;·&nbsp;SPEED&nbsp;PLANNER <small>v2.0</small>
   </div>
-  <nav class="tabs" id="tabs">
-    <button class="tab-btn on" data-tab="plan">Planner</button>
-    <button class="tab-btn" data-tab="sim">Simulator</button>
-    <button class="tab-btn" data-tab="cost">Cost</button>
-  </nav>
   <div class="actions">
     <button class="icon-btn" id="shareBtn" title="Copy a link to this exact setup">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
@@ -336,7 +331,7 @@ footer{border-top:1px solid var(--line);padding:26px 22px 40px;text-align:center
 <main class="wrap">
 
 <!-- ================= PLANNER ================= -->
-<section id="tab-plan">
+<div id="tab-plan">
   <div class="intro">
     <h1>How fast would AI run on <em>your own hardware?</em></h1>
     <p>Answer three questions and we'll show you exactly how it will <b>feel</b> — in plain English. No jargon, no signup, and everything runs right here in your browser.</p>
@@ -564,36 +559,13 @@ Calibrated against published real-world measurements; typical accuracy ±15%.</d
       <div class="rail-foot">ESTIMATE · CALIBRATED TO REAL BENCHMARKS · ±15% TYPICAL</div>
     </aside>
   </div>
-</section>
+</div>
 
 <!-- ================= SIMULATOR ================= -->
-<section id="tab-sim" class="hidden">
-  <div class="intro">
-    <h1>See it <em>in action</em></h1>
-    <p>This uses the exact setup from your Planner — no sliders, no settings. Press run and watch how it would actually feel, in real time.</p>
-  </div>
-  <div class="sim-chip"><span id="simChip">—</span><button id="simEdit">CHANGE</button></div>
-
-  <details class="adv" style="margin-bottom:20px">
-    <summary><span class="tw">▶</span> Quick swap <span class="sub">CHANGE SETUP WITHOUT LEAVING THIS PAGE</span></summary>
-    <div class="adv-body">
-      <div class="row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
-        <div><p class="field-label">Device</p><div class="selwrap"><select id="simDev"></select></div></div>
-        <div><p class="field-label">Model</p><div class="selwrap"><select id="simModel"></select></div></div>
-        <div><p class="field-label">Quant</p><div class="selwrap"><select id="simQuant"></select></div></div>
-      </div>
-      <div id="simVarRow" style="margin-bottom:12px">
-        <p class="field-label">Memory config</p><div class="selwrap"><select id="simVar"></select></div>
-      </div>
-      <div class="count-row" id="simCountRow"></div>
-      <div class="opt" style="border-bottom:0;padding-top:14px">
-        <input type="checkbox" id="simMtp"><div><div class="o-t">MTP / speculative decoding</div><div class="o-d">2× faster writing (model-dependent)</div></div>
-      </div>
-      <div class="opt" style="border-bottom:0">
-        <input type="checkbox" id="simVllm"><div><div class="o-t">vLLM / TensorRT</div><div class="o-d">1.5× faster on NVIDIA (no effect on Apple)</div></div>
-      </div>
-    </div>
-  </details>
+<div class="step" style="margin-top:40px">
+  <div class="step-head"><span class="step-num">04</span><span class="step-title">See it in action</span></div>
+  <p class="step-hint">This uses the exact setup from above. Press run and watch how it would actually feel, in real time. The prefill (reading) and decode (writing) phases are shown separately so you can see where time goes.</p>
+  <div class="sim-chip"><span id="simChip">—</span></div>
 
   <div class="scen-pills" style="margin-bottom:16px" id="simScenPills">
     <button class="sp-btn on" data-scen="short">Short reply</button>
@@ -635,14 +607,12 @@ Calibrated against published real-world measurements; typical accuracy ±15%.</d
       <tbody id="speedRefBody"></tbody>
     </table>
   </div>
-</section>
+</div>
 
 <!-- ================= COST ================= -->
-<section id="tab-cost" class="hidden">
-  <div class="intro">
-    <h1>The <em>money</em> case</h1>
-    <p>Cloud AI rents intelligence by the token. Local AI is a machine you buy once — and it's yours.</p>
-  </div>
+<div class="step" style="margin-top:40px">
+  <div class="step-head"><span class="step-num">05</span><span class="step-title">The money case</span></div>
+  <p class="step-hint">Cloud AI rents intelligence by the token. Local AI is a machine you buy once — and it's yours.</p>
 
   <div class="sov-grid">
     <div class="sov-card">
@@ -705,7 +675,7 @@ Calibrated against published real-world measurements; typical accuracy ±15%.</d
       <div id="cloudList" style="display:flex;flex-direction:column;gap:4px"></div>
     </div>
   </div>
-</section>
+</div>
 
 </main>
 
@@ -818,7 +788,7 @@ const ELECTRICITY={
 };
 
 /* ==================== STATE ==================== */
-const S={tab:"plan",use:"chat",harness:"light",model:"dsv4",quant:"q4",dev:"dgx",n:2,variant:0,
+const S={use:"chat",harness:"light",model:"dsv4",quant:"q4",dev:"dgx",n:2,variant:0,
   prompt:2300,gen:200,ctx:4096,mtp:false,vllm:false,kvq4:false,pfx:false,conc:1,
   cm:{name:"My Model",totalB:70,activeB:70,L:80,H:8,D:128,mla:false},
   cd:{name:"My Rig",ram:64,bw:500,tflops:100,tdp:300,vendor:"nvidia",fp4:false}};
@@ -984,7 +954,7 @@ function renderAll(){
   $("rdConc").textContent=fmt(R.perReq,1)+" t/s";
   $("concNote").textContent=S.conc>1?("≈"+fmt(R.perReq,1)+" t/s each"+(S.conc>Math.max(1,R.maxStreams)?" — beyond memory limit, requests will queue":"")):"";
   /* sim + cost mirrors */
-  $("simChip").textContent=R.n+"× "+R.d.name+" · "+R.m.name+" · "+QUANTS[S.quant].label+" · "+USES[S.use].name+(S.harness!=="bare"?" + "+HARNESSES[S.harness].name:"");
+  $("simChip").textContent=R.n+"× "+R.d.name+" · "+R.m.name+" · "+QUANTS[S.quant].label+" · reads "+fmtTok(S.prompt)+" / writes "+fmtTok(S.gen)+(S.harness!=="bare"?" · "+HARNESSES[S.harness].name:"");
   $("costChip").textContent=R.n+"× "+R.d.name+" · "+R.m.name+" "+QUANTS[S.quant].label;
   renderCost();
   writeHash();
@@ -1302,7 +1272,7 @@ function buildSimQuickSwap(){
 /* ==================== HASH / SHARE ==================== */
 function writeHash(){
   const p=new URLSearchParams();
-  p.set("tab",S.tab);p.set("u",S.use);p.set("h",S.harness);p.set("m",S.model);p.set("q",S.quant);
+  p.set("u",S.use);p.set("h",S.harness);p.set("m",S.model);p.set("q",S.quant);
   p.set("d",S.dev);p.set("n",S.n);p.set("v",S.variant);
   p.set("pt",Math.round(S.prompt));p.set("gt",Math.round(S.gen));p.set("cx",Math.round(S.ctx));
   p.set("mtp",S.mtp?1:0);p.set("vl",S.vllm?1:0);p.set("kv",S.kvq4?1:0);p.set("pfx",S.pfx?1:0);p.set("c",S.conc);
@@ -1328,7 +1298,6 @@ function applyHash(){
   const cc=parseInt(g("c"));if(cc>=1&&cc<=32)S.conc=cc;
   if(S.model==="custom"){S.cm.totalB=num(g("cmt"),70);S.cm.activeB=num(g("cma"),S.cm.totalB);S.cm.L=num(g("cml"),80);S.cm.H=num(g("cmh"),8);S.cm.D=num(g("cmd"),128);S.cm.mla=g("cmmla")==="1";}
   if(S.dev==="custom"){S.cd.ram=num(g("cdr"),64);S.cd.bw=num(g("cdb"),500);S.cd.tflops=num(g("cdt"),100);S.cd.tdp=num(g("cdw"),300);if(g("cdty")==="apple")S.cd.vendor="apple";S.cd.fp4=g("cdf")==="1";}
-  const tab=g("tab");if(["plan","sim","cost"].includes(tab))switchTab(tab);
 }
 function syncControls(){
   $("modelSel").value=S.model;renderModelMeta();
@@ -1342,14 +1311,7 @@ function syncControls(){
   $("cdRam").value=S.cd.ram;$("cdBw").value=S.cd.bw;$("cdTf").value=S.cd.tflops;$("cdTdp").value=S.cd.tdp;$("cdType").value=S.cd.vendor;$("cdFp4").checked=S.cd.fp4;
 }
 
-/* ==================== TABS / THEME ==================== */
-function switchTab(t){
-  S.tab=t;
-  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
-  ["plan","sim","cost"].forEach(k=>$("tab-"+k).classList.toggle("hidden",k!==t));
-  if(t!=="sim")stopSim();
-  writeHash();
-}
+/* ==================== THEME ==================== */
 function setTheme(t){
   document.documentElement.dataset.theme=t;
   try{localStorage.setItem("laisp-theme",t);}catch(e){}
@@ -1361,7 +1323,6 @@ function init(){
   try{theme=localStorage.getItem("laisp-theme")||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");}catch(e){}
   setTheme(theme);
   $("themeBtn").addEventListener("click",()=>{const cur=document.documentElement.dataset.theme==="dark"?"light":"dark";setTheme(cur);});
-  document.querySelectorAll(".tab-btn").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
   buildUseCards();buildHarnessRow();buildModelSel();buildQuantGrid();buildDevSel();
   /* custom workload sliders */
   const upd=()=>{S.prompt=Math.round(Math.pow(2,parseFloat($("wPrompt").value)));S.gen=Math.round(Math.pow(2,parseFloat($("wGen").value)));S.ctx=Math.round(Math.pow(2,parseFloat($("wCtx").value)));syncCustomSliders();renderAll();};
@@ -1389,9 +1350,6 @@ function init(){
     $("simOut").textContent="";$("simThink").classList.remove("show");$("simStats").classList.remove("show");$("simContext").classList.remove("show");$("simRun").disabled=false;$("simRun").textContent="▶ Run it";
   }));
   $("simRun").addEventListener("click",runSim);
-  $("simEdit").addEventListener("click",()=>switchTab("plan"));
-  /* sim quick-swap */
-  buildSimQuickSwap();
   buildSpeedRef();
   /* cost */
   buildCostControls();

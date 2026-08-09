@@ -330,137 +330,135 @@ footer{border-top:1px solid var(--line);padding:26px 22px 40px;text-align:center
 
 <main class="wrap">
 
-<!-- ================= PLANNER ================= -->
-<div id="tab-plan">
-  <div class="intro">
-    <h1>How fast would AI run on <em>your own hardware?</em></h1>
-    <p>Answer three questions and we'll show you exactly how it will <b>feel</b> — in plain English. No jargon, no signup, and everything runs right here in your browser.</p>
-  </div>
+<div class="intro">
+  <h1>How fast would AI run on <em>your own hardware?</em></h1>
+  <p>Answer three questions and we'll show you exactly how it will <b>feel</b> — in plain English. No jargon, no signup, and everything runs right here in your browser. The results panel on the right stays visible as you scroll.</p>
+</div>
 
-  <div class="layout">
-    <div class="config">
+<div class="layout">
+  <div class="config">
 
-      <!-- STEP 1 -->
-      <div class="step">
-        <div class="step-head"><span class="step-num">01</span><span class="step-title">What will you use it for?</span></div>
-        <p class="step-hint">This matters more than anything else. AI "reads" your request before it "writes" an answer — and some jobs involve a <b>lot</b> of reading. (AI reads and writes in <span class="def" title="A token is a chunk of text — roughly ¾ of a word. 1,000 tokens ≈ 750 words ≈ a page and a half.">tokens</span>.) Agent frameworks like Hermes or OpenClaw silently inject large instruction files (AGENTS.md, SOUL.md, tool definitions, skills) into <b>every single exchange</b> — easily 10K–60K tokens before you've typed a word.</p>
-        <div class="use-grid" id="useGrid"></div>
-        <div style="margin-top:14px">
-          <p class="field-label">Framework / context injection <span style="text-transform:none;letter-spacing:0;color:var(--tx3)">— how much invisible overhead does your tool add?</span></p>
-          <div class="count-row" id="harnessRow"></div>
-          <p class="desc-line" id="harnessDesc"></p>
+    <!-- STEP 1: What will you use it for? -->
+    <div class="step">
+      <div class="step-head"><span class="step-num">01</span><span class="step-title">What will you use it for?</span></div>
+      <p class="step-hint">This matters more than anything else. AI "reads" your request before it "writes" an answer — and some jobs involve a <b>lot</b> of reading. (AI reads and writes in <span class="def" title="A token is a chunk of text — roughly ¾ of a word. 1,000 tokens ≈ 750 words ≈ a page and a half.">tokens</span>.) Agent frameworks (like Hermes, Cline, Aider, or similar) silently inject large instruction files (AGENTS.md, system prompts, tool definitions, skills) into <b>every single exchange</b> — easily 10K–60K tokens before you've typed a word.</p>
+      <div class="use-grid" id="useGrid"></div>
+      <div style="margin-top:14px">
+        <p class="field-label">Framework / context injection <span style="text-transform:none;letter-spacing:0;color:var(--tx3)">— how much invisible overhead does your tool add?</span></p>
+        <div class="count-row" id="harnessRow"></div>
+        <p class="desc-line" id="harnessDesc"></p>
+      </div>
+      <div class="custom-panel" id="customUsePanel">
+        <div class="slider-row">
+          <label>How much it reads per turn<br><span class="mono" style="font-size:10px;color:var(--tx3)">the "prompt"</span></label>
+          <input type="range" id="wPrompt" min="7" max="14.3" step="0.05" value="9.7">
+          <output id="wPromptV">8K tokens</output>
         </div>
-        <div class="custom-panel" id="customUsePanel">
-          <div class="slider-row">
-            <label>How much it reads per turn<br><span class="mono" style="font-size:10px;color:var(--tx3)">the "prompt"</span></label>
-            <input type="range" id="wPrompt" min="7" max="14.3" step="0.05" value="9.7">
-            <output id="wPromptV">8K tokens</output>
-          </div>
-          <div class="slider-row">
-            <label>How much it writes back<br><span class="mono" style="font-size:10px;color:var(--tx3)">the "response"</span></label>
-            <input type="range" id="wGen" min="5.6" max="8.4" step="0.05" value="6.2">
-            <output id="wGenV">500 tokens</output>
-          </div>
-          <div class="slider-row">
-            <label>Total memory it keeps<br><span class="mono" style="font-size:10px;color:var(--tx3)">the "context window"</span></label>
-            <input type="range" id="wCtx" min="12" max="20" step="0.1" value="15">
-            <output id="wCtxV">32K tokens</output>
-          </div>
+        <div class="slider-row">
+          <label>How much it writes back<br><span class="mono" style="font-size:10px;color:var(--tx3)">the "response"</span></label>
+          <input type="range" id="wGen" min="5.6" max="8.4" step="0.05" value="6.2">
+          <output id="wGenV">500 tokens</output>
+        </div>
+        <div class="slider-row">
+          <label>Total memory it keeps<br><span class="mono" style="font-size:10px;color:var(--tx3)">the "context window"</span></label>
+          <input type="range" id="wCtx" min="12" max="20" step="0.1" value="15">
+          <output id="wCtxV">32K tokens</output>
         </div>
       </div>
+    </div>
 
-      <!-- STEP 2 -->
-      <div class="step">
-        <div class="step-head"><span class="step-num">02</span><span class="step-title">Choose a brain</span></div>
-        <p class="step-hint">Bigger models are smarter but heavier. Clever "MoE" models only use a slice of themselves per word, so they punch above their weight.</p>
-        <p class="field-label">Model</p>
-        <div class="selwrap"><select id="modelSel"></select></div>
-        <div class="meta-line" id="modelBadges"></div>
-        <p class="desc-line" id="modelDesc"></p>
-        <div class="custom-form" id="customModelPanel">
-          <div><label>Name</label><input id="cmName" value="My Model"></div>
-          <div><label>Total size (B params)</label><input id="cmTotal" type="number" value="70" min="1"></div>
-          <div><label>Active per token (B)</label><input id="cmActive" type="number" value="70" min="1"></div>
-          <div><label>Layers</label><input id="cmL" type="number" value="80" min="1"></div>
-          <div><label>Attention heads</label><input id="cmH" type="number" value="8" min="1"></div>
-          <div><label>Head dimension</label><input id="cmD" type="number" value="128" min="1"></div>
-          <div class="cf-full check-row"><input type="checkbox" id="cmMla"><span>Uses MLA memory compression (DeepSeek-style — much smaller memory footprint)</span></div>
-        </div>
-
-        <p class="field-label" style="margin-top:20px">Compression ("quantization")</p>
-        <div class="quant-grid" id="quantGrid"></div>
-        <div class="note-box"><b>Q4 is the sweet spot</b> — near-lossless quality at half the size. A bigger model at Q4 usually beats a smaller model at full precision. IQ1–IQ3 squeeze much smaller but run <b>slower</b> on today's software — only worth it when nothing else fits.</div>
-        <div class="fit-line"><span class="dot g" id="quantDot"></span><span id="quantFit" class="mono"></span></div>
+    <!-- STEP 2: Choose a brain -->
+    <div class="step">
+      <div class="step-head"><span class="step-num">02</span><span class="step-title">Choose a brain</span></div>
+      <p class="step-hint">Bigger models are smarter but heavier. Clever "MoE" models only use a slice of themselves per word, so they punch above their weight.</p>
+      <p class="field-label">Model</p>
+      <div class="selwrap"><select id="modelSel"></select></div>
+      <div class="meta-line" id="modelBadges"></div>
+      <p class="desc-line" id="modelDesc"></p>
+      <div class="custom-form" id="customModelPanel">
+        <div><label>Name</label><input id="cmName" value="My Model"></div>
+        <div><label>Total size (B params)</label><input id="cmTotal" type="number" value="70" min="1"></div>
+        <div><label>Active per token (B)</label><input id="cmActive" type="number" value="70" min="1"></div>
+        <div><label>Layers</label><input id="cmL" type="number" value="80" min="1"></div>
+        <div><label>Attention heads</label><input id="cmH" type="number" value="8" min="1"></div>
+        <div><label>Head dimension</label><input id="cmD" type="number" value="128" min="1"></div>
+        <div class="cf-full check-row"><input type="checkbox" id="cmMla"><span>Uses MLA memory compression (DeepSeek-style — much smaller memory footprint)</span></div>
       </div>
 
-      <!-- STEP 3 -->
-      <div class="step">
-        <div class="step-head"><span class="step-num">03</span><span class="step-title">Choose a machine</span></div>
-        <p class="step-hint">Two things decide speed: <b>memory bandwidth</b> (how fast it can read the model — controls writing speed) and <b>compute</b> (controls thinking time). Memory size decides what fits at all.</p>
-        <p class="field-label">Device family</p>
-        <div class="selwrap"><select id="devSel"></select></div>
-        <div id="devVarWrap" style="margin-top:12px" class="hidden">
-          <p class="field-label">Memory configuration</p>
-          <div class="selwrap"><select id="devVar"></select></div>
-        </div>
-        <div class="count-row" id="countRow"></div>
-        <p class="desc-line" id="devBlurb"></p>
-        <div class="stat-grid">
-          <div class="stat"><div class="s-l">Memory</div><div class="s-v" id="dsRam">—</div><div class="s-s" id="dsRamS"></div></div>
-          <div class="stat"><div class="s-l">Bandwidth</div><div class="s-v" id="dsBw">—</div><div class="s-s">per unit · writing speed</div></div>
-          <div class="stat"><div class="s-l">Compute</div><div class="s-v" id="dsTf">—</div><div class="s-s">per unit · thinking speed</div></div>
-          <div class="stat"><div class="s-l">Power</div><div class="s-v" id="dsPow">—</div><div class="s-s">under load</div></div>
-        </div>
-        <div class="custom-form" id="customDevPanel">
-          <div><label>Name</label><input id="cdName" value="My Rig"></div>
-          <div><label>Memory per unit (GB)</label><input id="cdRam" type="number" value="64" min="1"></div>
-          <div><label>Bandwidth (GB/s)</label><input id="cdBw" type="number" value="500" min="1"></div>
-          <div><label>Compute (TFLOPS)</label><input id="cdTf" type="number" value="100" min="1"></div>
-          <div><label>Power (W)</label><input id="cdTdp" type="number" value="300" min="1"></div>
-          <div><label>Chip style</label><select id="cdType"><option value="nvidia">NVIDIA-like (CUDA)</option><option value="apple">Apple-like (unified memory)</option></select></div>
-          <div class="cf-full check-row"><input type="checkbox" id="cdFp4"><span>Has FP4 hardware acceleration (Blackwell-generation or newer)</span></div>
-        </div>
-      </div>
+      <p class="field-label" style="margin-top:20px">Compression ("quantization")</p>
+      <div class="quant-grid" id="quantGrid"></div>
+      <div class="note-box"><b>Q4 is the sweet spot</b> — near-lossless quality at half the size. A bigger model at Q4 usually beats a smaller model at full precision. IQ1–IQ3 squeeze much smaller but run <b>slower</b> on today's software — only worth it when nothing else fits.</div>
+      <div class="fit-line"><span class="dot g" id="quantDot"></span><span id="quantFit" class="mono"></span></div>
+    </div>
 
-      <!-- ADVANCED -->
-      <details class="adv" id="advDet">
-        <summary><span class="tw">▶</span> Advanced knobs <span class="sub">SAFE TO IGNORE — SENSIBLE DEFAULTS</span></summary>
-        <div class="adv-body">
-          <div class="opt">
-            <input type="checkbox" id="optMtp">
-            <div><div class="o-t">Multi-token drafting (MTP)</div><div class="o-d">The model sketches several words ahead, then checks its own work — roughly <b>2× faster writing</b> with no quality loss. Supported on newer models.</div></div>
-          </div>
-          <div class="opt">
-            <input type="checkbox" id="optVllm">
-            <div><div class="o-t">High-performance server (vLLM)</div><div class="o-d">Free, standard serving software that squeezes ~<b>1.5× more speed</b> out of NVIDIA chips. (No effect on Apple silicon.)</div></div>
-          </div>
-          <div class="opt">
-            <input type="checkbox" id="optKv">
-            <div><div class="o-t">Compressed short-term memory (KV Q4)</div><div class="o-d">Shrinks the model's running memory of your conversation to a quarter of the size — lets you fit <b>much longer documents</b>, at a tiny quality cost.</div></div>
-          </div>
-          <div class="opt">
-            <input type="checkbox" id="optPfx">
-            <div><div class="o-t">Prefix caching</div><div class="o-d">Remembers the part of your prompt that never changes (like your agent's instructions) instead of re-reading it every single step. <b>Huge time-saver for agents.</b></div></div>
-          </div>
-          <div class="opt">
-            <div style="margin-top:2px">
-              <div class="o-t">People (or agents) using it at once</div>
-              <div class="o-d">One machine can serve several users at the same time. Each person gets slightly slower responses, and the model's memory eventually limits how many fit.</div>
-              <div class="conc-ctl">
-                <button class="stepper" id="concMinus">−</button>
-                <span class="conc-val" id="concVal">1</span>
-                <button class="stepper" id="concPlus">+</button>
-                <span class="mono" style="font-size:11px;color:var(--tx3)" id="concNote"></span>
-              </div>
+    <!-- STEP 3: Choose a machine -->
+    <div class="step">
+      <div class="step-head"><span class="step-num">03</span><span class="step-title">Choose a machine</span></div>
+      <p class="step-hint">Two things decide speed: <b>memory bandwidth</b> (how fast it can read the model — controls writing speed) and <b>compute</b> (controls thinking time). Memory size decides what fits at all.</p>
+      <p class="field-label">Device family</p>
+      <div class="selwrap"><select id="devSel"></select></div>
+      <div id="devVarWrap" style="margin-top:12px" class="hidden">
+        <p class="field-label">Memory configuration</p>
+        <div class="selwrap"><select id="devVar"></select></div>
+      </div>
+      <div class="count-row" id="countRow"></div>
+      <p class="desc-line" id="devBlurb"></p>
+      <div class="stat-grid">
+        <div class="stat"><div class="s-l">Memory</div><div class="s-v" id="dsRam">—</div><div class="s-s" id="dsRamS"></div></div>
+        <div class="stat"><div class="s-l">Bandwidth</div><div class="s-v" id="dsBw">—</div><div class="s-s">per unit · writing speed</div></div>
+        <div class="stat"><div class="s-l">Compute</div><div class="s-v" id="dsTf">—</div><div class="s-s">per unit · thinking speed</div></div>
+        <div class="stat"><div class="s-l">Power</div><div class="s-v" id="dsPow">—</div><div class="s-s">under load</div></div>
+      </div>
+      <div class="custom-form" id="customDevPanel">
+        <div><label>Name</label><input id="cdName" value="My Rig"></div>
+        <div><label>Memory per unit (GB)</label><input id="cdRam" type="number" value="64" min="1"></div>
+        <div><label>Bandwidth (GB/s)</label><input id="cdBw" type="number" value="500" min="1"></div>
+        <div><label>Compute (TFLOPS)</label><input id="cdTf" type="number" value="100" min="1"></div>
+        <div><label>Power (W)</label><input id="cdTdp" type="number" value="300" min="1"></div>
+        <div><label>Chip style</label><select id="cdType"><option value="nvidia">NVIDIA-like (CUDA)</option><option value="apple">Apple-like (unified memory)</option></select></div>
+        <div class="cf-full check-row"><input type="checkbox" id="cdFp4"><span>Has FP4 hardware acceleration (Blackwell-generation or newer)</span></div>
+      </div>
+    </div>
+
+    <!-- ADVANCED -->
+    <details class="adv" id="advDet">
+      <summary><span class="tw">▶</span> Advanced knobs <span class="sub">SAFE TO IGNORE — SENSIBLE DEFAULTS</span></summary>
+      <div class="adv-body">
+        <div class="opt">
+          <input type="checkbox" id="optMtp">
+          <div><div class="o-t">Multi-token drafting (MTP)</div><div class="o-d">The model sketches several words ahead, then checks its own work — roughly <b>2× faster writing</b> with no quality loss. Supported on newer models.</div></div>
+        </div>
+        <div class="opt">
+          <input type="checkbox" id="optVllm">
+          <div><div class="o-t">High-performance server (vLLM)</div><div class="o-d">Free, standard serving software that squeezes ~<b>1.5× more speed</b> out of NVIDIA chips. (No effect on Apple silicon.)</div></div>
+        </div>
+        <div class="opt">
+          <input type="checkbox" id="optKv">
+          <div><div class="o-t">Compressed short-term memory (KV Q4)</div><div class="o-d">Shrinks the model's running memory of your conversation to a quarter of the size — lets you fit <b>much longer documents</b>, at a tiny quality cost.</div></div>
+        </div>
+        <div class="opt">
+          <input type="checkbox" id="optPfx">
+          <div><div class="o-t">Prefix caching</div><div class="o-d">Remembers the part of your prompt that never changes (like your agent's instructions) instead of re-reading it every single step. <b>Huge time-saver for agents.</b></div></div>
+        </div>
+        <div class="opt">
+          <div style="margin-top:2px">
+            <div class="o-t">People (or agents) using it at once</div>
+            <div class="o-d">One machine can serve several users at the same time. Each person gets slightly slower responses, and the model's memory eventually limits how many fit.</div>
+            <div class="conc-ctl">
+              <button class="stepper" id="concMinus">−</button>
+              <span class="conc-val" id="concVal">1</span>
+              <button class="stepper" id="concPlus">+</button>
+              <span class="mono" style="font-size:11px;color:var(--tx3)" id="concNote"></span>
             </div>
           </div>
         </div>
-      </details>
+      </div>
+    </details>
 
-      <details class="adv">
-        <summary><span class="tw">▶</span> How the math works <span class="sub">FOR THE CURIOUS</span></summary>
-        <div class="adv-body">
-          <div class="engine">WRITING SPEED (memory-bandwidth bound)
+    <details class="adv">
+      <summary><span class="tw">▶</span> How the math works <span class="sub">FOR THE CURIOUS</span></summary>
+      <div class="adv-body">
+        <div class="engine">WRITING SPEED (memory-bandwidth bound)
   words/sec = (bandwidth × split-efficiency ÷ active model size)
               × hardware-efficiency × compression-factor × drafting-boost
 
@@ -473,211 +471,212 @@ MEMORY  model weights + conversation memory ≤ 85% of total RAM
         (if the weights don't fit, layers spill to the CPU — very slow)
 
 Calibrated against published real-world measurements; typical accuracy ±15%.</div>
+      </div>
+    </details>
+
+    <!-- STEP 4: See it in action -->
+    <div class="step">
+      <div class="step-head"><span class="step-num">04</span><span class="step-title">See it in action</span></div>
+      <p class="step-hint">This uses the exact setup from above. Press run and watch how it would actually feel, in real time. The prefill (reading) and decode (writing) phases are shown separately so you can see where time goes.</p>
+      <div class="sim-chip"><span id="simChip">—</span></div>
+
+      <div class="scen-pills" style="margin-bottom:16px" id="simScenPills">
+        <button class="sp-btn on" data-scen="short">Short reply</button>
+        <button class="sp-btn" data-scen="medium">Medium reply</button>
+        <button class="sp-btn" data-scen="long">Long reply</button>
+      </div>
+
+      <div class="stage">
+        <div class="stage-bar"><i></i><i></i><i></i><span class="st-title" id="stageTitle">LOCAL MODEL — LIVE SIMULATION</span></div>
+        <div class="stage-body">
+          <div class="sim-user"><b>You:</b> <span id="simUserText"></span></div>
+          <div class="sim-think" id="simThink">
+            <div class="think-label">READING YOUR REQUEST<span class="blink">…</span> <button class="btn-ghost" id="simSkip" style="padding:3px 10px;font-size:11px;display:none">skip ahead →</button></div>
+            <div class="think-track"><div class="think-fill" id="simThinkFill"></div></div>
+            <div class="think-ct" id="simThinkCt"></div>
+          </div>
+          <div class="sim-out" id="simOut"></div>
+        </div>
+      </div>
+
+      <div class="sim-controls">
+        <button class="btn-primary" id="simRun">▶ Run it</button>
+        <button class="btn-ghost hidden" id="simStop">■ Stop</button>
+        <button class="btn-ghost hidden" id="simSkipDecode" style="font-size:12px">skip to end →</button>
+        <span class="mono" style="font-size:11px;color:var(--tx3)">REAL TIME — IF IT'S SLOW, THAT'S THE POINT</span>
+      </div>
+
+      <div class="sim-stats" id="simStats">
+        <div class="ss"><div class="ss-l">Thinking time</div><div class="ss-v" id="ssTtft">—</div><div class="ss-s">before the first word appeared</div></div>
+        <div class="ss"><div class="ss-l">Writing speed</div><div class="ss-v" id="ssWps">—</div><div class="ss-s" id="ssWpsS"></div></div>
+        <div class="ss"><div class="ss-l">Total</div><div class="ss-v" id="ssTotal">—</div><div class="ss-s">start to finish</div></div>
+      </div>
+      <div class="sim-context" id="simContext"></div>
+
+      <div class="card" style="margin-top:30px">
+        <h2 style="font-size:15px;font-weight:650;margin-bottom:12px">Reference: what speeds feel like</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3)">Speed</th><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3)">Experience</th></tr></thead>
+          <tbody id="speedRefBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- STEP 5: The money case -->
+    <div class="step">
+      <div class="step-head"><span class="step-num">05</span><span class="step-title">The money case</span></div>
+      <p class="step-hint">Cloud AI rents intelligence by the token. Local AI is a machine you buy once — and it's yours.</p>
+
+      <div class="sov-grid">
+        <div class="sov-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <div class="sv-t">Private by physics</div>
+          <div class="sv-d">Your prompts never leave the room. No logs, no training on your data, no breach that can expose them.</div>
+        </div>
+        <div class="sov-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M18.2 8.5a4.5 4.5 0 0 1 0 7c-2.5 2-5.5-1-8-3.5S4.2 6.5 5.8 8.5a4.5 4.5 0 0 1 0 7" transform="rotate(90 12 12)"/></svg>
+          <div class="sv-t">No rate limits</div>
+          <div class="sv-d">Run a thousand agent steps at 3 AM. Nobody throttles you, queues you, or cuts you off.</div>
+        </div>
+        <div class="sov-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 3l18 18M10.7 5.1A11 11 0 0 1 21 9M5 9a11 11 0 0 1 2.3-2.4M8.5 12.5a6 6 0 0 1 5.5-1.6M12 18h.01"/></svg>
+          <div class="sv-t">Works offline</div>
+          <div class="sv-d">Plane, cabin, outage, apocalypse. If it has power, it works. No subscription can be revoked.</div>
+        </div>
+        <div class="sov-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M16 12h.01M4 10h16"/></svg>
+          <div class="sv-t">Fixed cost</div>
+          <div class="sv-d">Buy once, pay a few dollars of power a month. Your bill never surprises you again.</div>
+        </div>
+      </div>
+
+      <div class="cost-grid">
+        <div class="cost-panel">
+          <p class="field-label">Country (electricity rate)</p>
+          <div class="selwrap"><select id="cCountry"></select></div>
+          <p class="field-label" style="margin-top:14px">Heavy use (hours / day)</p>
+          <input id="cHours" type="number" value="4" step="0.5" min="0" max="24">
+          <p class="cost-note" style="margin-top:14px">Using your Planner setup: <span id="costChip" class="mono"></span></p>
+        </div>
+
+        <div class="cost-out">
+          <div class="vs-row">
+            <div class="vs-box local">
+              <div class="vs-l">Your electricity · per 1M tokens</div>
+              <div class="vs-v" id="coLocal">—</div>
+              <div class="vs-s">power draw only — hardware purchase not included</div>
+            </div>
+            <div class="vs-box">
+              <div class="vs-l">Cloud API · per 1M tokens</div>
+              <div class="vs-v" id="coCloud">—</div>
+              <div class="vs-s" id="coCloudName">—</div>
+            </div>
+          </div>
+
+          <div class="cmp-row">
+            <div class="cmp-l"><span>YOUR ELECTRICITY COST (monthly)</span><b id="coLocalMo">—</b></div>
+            <div class="cmp-track"><div class="cmp-fill lc" id="barLocal" style="width:2%"></div></div>
+          </div>
+          <div class="cmp-row">
+            <div class="cmp-l"><span>CLOUD API COST (same usage)</span><b id="coCloudMo">—</b></div>
+            <div class="cmp-track"><div class="cmp-fill cc" id="barCloud" style="width:2%"></div></div>
+          </div>
+
+          <p class="cost-note">Roughly <span id="coTokens" class="mono"></span> tokens processed per month at your usage. Local electricity cost only — the hardware is yours regardless. Even where cloud is cheaper on paper, local buys you privacy, no rate limits, and independence.</p>
+
+          <p class="field-label" style="margin:18px 0 8px">All cloud services (sorted by price)</p>
+          <div id="cloudList" style="display:flex;flex-direction:column;gap:4px"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.config -->
+
+  <!-- RESULTS RAIL — stays visible while scrolling the whole page -->
+  <aside class="rail" id="resultsRail">
+    <div class="rail-head"><span>HOW IT WILL FEEL</span><span id="railConf" class="mono"></span></div>
+    <div class="rail-body">
+      <div class="badge-verified" id="verifiedBadge"><span>✓</span><span id="verifiedText"></span></div>
+
+      <div class="bm-label">Writing speed</div>
+      <div class="bm-value"><span id="rWps">—</span><span class="bm-unit">words / sec</span></div>
+      <div class="bm-sub" id="rTps">—</div>
+      <div class="pace-wrap">
+        <div class="pace-track">
+          <div class="pace-fill" id="paceFill" style="width:3%"></div>
+          <div class="pace-human" id="paceHuman"></div>
+        </div>
+        <div class="pace-legend"><span class="ph">▲ you read (~4 w/s)</span><span id="paceX"></span></div>
+      </div>
+      <div class="bm-note" id="rPaceNote"></div>
+
+      <hr class="hr">
+      <div class="metric-pair">
+        <div class="mp">
+          <div class="mp-l">Time to first word</div>
+          <div class="mp-v" id="rTtft">—</div>
+          <div class="mp-c g" id="rTtftChip">—</div>
+        </div>
+        <div class="mp">
+          <div class="mp-l">Full reply takes</div>
+          <div class="mp-v" id="rFull">—</div>
+          <div class="mp-c" id="rFullSub" style="color:var(--tx3)">reading + writing</div>
+        </div>
+      </div>
+
+      <div class="callout" id="agentCallout">
+        <div class="c-t">⚠ THE AGENTIC WALL</div>
+        <div class="c-b" id="agentText"></div>
+      </div>
+
+      <div class="split-note" id="splitNote">
+        <div class="sn-t" id="splitTitle"></div>
+        <div id="splitText"></div>
+      </div>
+
+      <div class="mem-block">
+        <div class="bm-label" style="margin-bottom:8px">Memory fit</div>
+        <div class="mem-bar" id="memBar">
+          <div class="mem-seg mem-w" id="memW"></div>
+          <div class="mem-seg mem-k" id="memK"></div>
+          <div class="mem-seg mem-over" id="memOver" style="width:0%"></div>
+        </div>
+        <div class="mem-legend">
+          <span><i style="background:var(--acc)"></i><span id="legW">model</span></span>
+          <span><i style="background:var(--info)"></i><span id="legK">conversation</span></span>
+          <span id="legFree"></span>
+        </div>
+        <div class="mem-note g" id="memNote"></div>
+      </div>
+
+      <div class="scen">
+        <div class="bm-label" style="margin-bottom:6px">Real tasks, timed</div>
+        <div class="scen-row"><span class="sc-n">Quick chat reply</span><span class="sc-t" id="sc1t">—</span></div>
+        <div class="scen-row"><span class="sc-n">Long, thoughtful answer</span><span class="sc-t" id="sc2t">—</span></div>
+        <div class="scen-row"><span class="sc-n hot">One coding-agent step</span><span class="sc-t" id="sc3t">—</span></div>
+        <div class="scen-row"><span class="sc-n">Summarize a 20-page report</span><span class="sc-t" id="sc4t">—</span></div>
+      </div>
+
+      <details class="raw">
+        <summary>▸ Raw numbers</summary>
+        <div class="raw-grid">
+          <div><span>decode</span><b id="rdDec">—</b></div>
+          <div><span>prefill</span><b id="rdPre">—</b></div>
+          <div><span>weights</span><b id="rdW">—</b></div>
+          <div><span>KV cache</span><b id="rdKv">—</b></div>
+          <div><span>active size</span><b id="rdAct">—</b></div>
+          <div><span>ctx penalty</span><b id="rdDeg">—</b></div>
+          <div><span>max parallel</span><b id="rdStreams">—</b></div>
+          <div><span>per-user @ N</span><b id="rdConc">—</b></div>
         </div>
       </details>
     </div>
-
-    <!-- RESULTS RAIL -->
-    <aside class="rail">
-      <div class="rail-head"><span>HOW IT WILL FEEL</span><span id="railConf" class="mono"></span></div>
-      <div class="rail-body">
-        <div class="badge-verified" id="verifiedBadge"><span>✓</span><span id="verifiedText"></span></div>
-
-        <div class="bm-label">Writing speed</div>
-        <div class="bm-value"><span id="rWps">—</span><span class="bm-unit">words / sec</span></div>
-        <div class="bm-sub" id="rTps">—</div>
-        <div class="pace-wrap">
-          <div class="pace-track">
-            <div class="pace-fill" id="paceFill" style="width:3%"></div>
-            <div class="pace-human" id="paceHuman"></div>
-          </div>
-          <div class="pace-legend"><span class="ph">▲ you read (~4 w/s)</span><span id="paceX"></span></div>
-        </div>
-        <div class="bm-note" id="rPaceNote"></div>
-
-        <hr class="hr">
-        <div class="metric-pair">
-          <div class="mp">
-            <div class="mp-l">Time to first word</div>
-            <div class="mp-v" id="rTtft">—</div>
-            <div class="mp-c g" id="rTtftChip">—</div>
-          </div>
-          <div class="mp">
-            <div class="mp-l">Full reply takes</div>
-            <div class="mp-v" id="rFull">—</div>
-            <div class="mp-c" id="rFullSub" style="color:var(--tx3)">reading + writing</div>
-          </div>
-        </div>
-
-        <div class="callout" id="agentCallout">
-          <div class="c-t">⚠ THE AGENTIC WALL</div>
-          <div class="c-b" id="agentText"></div>
-        </div>
-
-        <div class="split-note" id="splitNote">
-          <div class="sn-t" id="splitTitle"></div>
-          <div id="splitText"></div>
-        </div>
-
-        <div class="mem-block">
-          <div class="bm-label" style="margin-bottom:8px">Memory fit</div>
-          <div class="mem-bar" id="memBar">
-            <div class="mem-seg mem-w" id="memW"></div>
-            <div class="mem-seg mem-k" id="memK"></div>
-            <div class="mem-seg mem-over" id="memOver" style="width:0%"></div>
-          </div>
-          <div class="mem-legend">
-            <span><i style="background:var(--acc)"></i><span id="legW">model</span></span>
-            <span><i style="background:var(--info)"></i><span id="legK">conversation</span></span>
-            <span id="legFree"></span>
-          </div>
-          <div class="mem-note g" id="memNote"></div>
-        </div>
-
-        <div class="scen">
-          <div class="bm-label" style="margin-bottom:6px">Real tasks, timed</div>
-          <div class="scen-row"><span class="sc-n">Quick chat reply</span><span class="sc-t" id="sc1t">—</span></div>
-          <div class="scen-row"><span class="sc-n">Long, thoughtful answer</span><span class="sc-t" id="sc2t">—</span></div>
-          <div class="scen-row"><span class="sc-n hot">One coding-agent step</span><span class="sc-t" id="sc3t">—</span></div>
-          <div class="scen-row"><span class="sc-n">Summarize a 20-page report</span><span class="sc-t" id="sc4t">—</span></div>
-        </div>
-
-        <details class="raw">
-          <summary>▸ Raw numbers</summary>
-          <div class="raw-grid">
-            <div><span>decode</span><b id="rdDec">—</b></div>
-            <div><span>prefill</span><b id="rdPre">—</b></div>
-            <div><span>weights</span><b id="rdW">—</b></div>
-            <div><span>KV cache</span><b id="rdKv">—</b></div>
-            <div><span>active size</span><b id="rdAct">—</b></div>
-            <div><span>ctx penalty</span><b id="rdDeg">—</b></div>
-            <div><span>max parallel</span><b id="rdStreams">—</b></div>
-            <div><span>per-user @ N</span><b id="rdConc">—</b></div>
-          </div>
-        </details>
-      </div>
-      <div class="rail-foot">ESTIMATE · CALIBRATED TO REAL BENCHMARKS · ±15% TYPICAL</div>
-    </aside>
-  </div>
-</div>
-
-<!-- ================= SIMULATOR ================= -->
-<div class="step" style="margin-top:40px">
-  <div class="step-head"><span class="step-num">04</span><span class="step-title">See it in action</span></div>
-  <p class="step-hint">This uses the exact setup from above. Press run and watch how it would actually feel, in real time. The prefill (reading) and decode (writing) phases are shown separately so you can see where time goes.</p>
-  <div class="sim-chip"><span id="simChip">—</span></div>
-
-  <div class="scen-pills" style="margin-bottom:16px" id="simScenPills">
-    <button class="sp-btn on" data-scen="short">Short reply</button>
-    <button class="sp-btn" data-scen="medium">Medium reply</button>
-    <button class="sp-btn" data-scen="long">Long reply</button>
-  </div>
-
-  <div class="stage">
-    <div class="stage-bar"><i></i><i></i><i></i><span class="st-title" id="stageTitle">LOCAL MODEL — LIVE SIMULATION</span></div>
-    <div class="stage-body">
-      <div class="sim-user"><b>You:</b> <span id="simUserText"></span></div>
-      <div class="sim-think" id="simThink">
-        <div class="think-label">READING YOUR REQUEST<span class="blink">…</span> <button class="btn-ghost" id="simSkip" style="padding:3px 10px;font-size:11px;display:none">skip ahead →</button></div>
-        <div class="think-track"><div class="think-fill" id="simThinkFill"></div></div>
-        <div class="think-ct" id="simThinkCt"></div>
-      </div>
-      <div class="sim-out" id="simOut"></div>
-    </div>
-  </div>
-
-  <div class="sim-controls">
-    <button class="btn-primary" id="simRun">▶ Run it</button>
-    <button class="btn-ghost hidden" id="simStop">■ Stop</button>
-    <button class="btn-ghost hidden" id="simSkipDecode" style="font-size:12px">skip to end →</button>
-    <span class="mono" style="font-size:11px;color:var(--tx3)">REAL TIME — IF IT'S SLOW, THAT'S THE POINT</span>
-  </div>
-
-  <div class="sim-stats" id="simStats">
-    <div class="ss"><div class="ss-l">Thinking time</div><div class="ss-v" id="ssTtft">—</div><div class="ss-s">before the first word appeared</div></div>
-    <div class="ss"><div class="ss-l">Writing speed</div><div class="ss-v" id="ssWps">—</div><div class="ss-s" id="ssWpsS"></div></div>
-    <div class="ss"><div class="ss-l">Total</div><div class="ss-v" id="ssTotal">—</div><div class="ss-s">start to finish</div></div>
-  </div>
-  <div class="sim-context" id="simContext"></div>
-
-  <div class="card" style="margin-top:30px;max-width:820px">
-    <h2 style="font-size:15px;font-weight:650;margin-bottom:12px">Reference: what speeds feel like</h2>
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3)">Speed</th><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3)">Experience</th></tr></thead>
-      <tbody id="speedRefBody"></tbody>
-    </table>
-  </div>
-</div>
-
-<!-- ================= COST ================= -->
-<div class="step" style="margin-top:40px">
-  <div class="step-head"><span class="step-num">05</span><span class="step-title">The money case</span></div>
-  <p class="step-hint">Cloud AI rents intelligence by the token. Local AI is a machine you buy once — and it's yours.</p>
-
-  <div class="sov-grid">
-    <div class="sov-card">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-      <div class="sv-t">Private by physics</div>
-      <div class="sv-d">Your prompts never leave the room. No logs, no training on your data, no breach that can expose them.</div>
-    </div>
-    <div class="sov-card">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M18.2 8.5a4.5 4.5 0 0 1 0 7c-2.5 2-5.5-1-8-3.5S4.2 6.5 5.8 8.5a4.5 4.5 0 0 1 0 7" transform="rotate(90 12 12)"/></svg>
-      <div class="sv-t">No rate limits</div>
-      <div class="sv-d">Run a thousand agent steps at 3 AM. Nobody throttles you, queues you, or cuts you off.</div>
-    </div>
-    <div class="sov-card">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 3l18 18M10.7 5.1A11 11 0 0 1 21 9M5 9a11 11 0 0 1 2.3-2.4M8.5 12.5a6 6 0 0 1 5.5-1.6M12 18h.01"/></svg>
-      <div class="sv-t">Works offline</div>
-      <div class="sv-d">Plane, cabin, outage, apocalypse. If it has power, it works. No subscription can be revoked.</div>
-    </div>
-    <div class="sov-card">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M16 12h.01M4 10h16"/></svg>
-      <div class="sv-t">Fixed cost</div>
-      <div class="sv-d">Buy once, pay a few dollars of power a month. Your bill never surprises you again.</div>
-    </div>
-  </div>
-
-  <div class="cost-grid">
-    <div class="cost-panel">
-      <p class="field-label">Country (electricity rate)</p>
-      <div class="selwrap"><select id="cCountry"></select></div>
-      <p class="field-label" style="margin-top:14px">Heavy use (hours / day)</p>
-      <input id="cHours" type="number" value="4" step="0.5" min="0" max="24">
-      <p class="cost-note" style="margin-top:14px">Using your Planner setup: <span id="costChip" class="mono"></span></p>
-    </div>
-
-    <div class="cost-out">
-      <div class="vs-row">
-        <div class="vs-box local">
-          <div class="vs-l">Your electricity · per 1M tokens</div>
-          <div class="vs-v" id="coLocal">—</div>
-          <div class="vs-s">power draw only — hardware purchase not included</div>
-        </div>
-        <div class="vs-box">
-          <div class="vs-l">Cloud API · per 1M tokens</div>
-          <div class="vs-v" id="coCloud">—</div>
-          <div class="vs-s" id="coCloudName">—</div>
-        </div>
-      </div>
-
-      <div class="cmp-row">
-        <div class="cmp-l"><span>YOUR ELECTRICITY COST (monthly)</span><b id="coLocalMo">—</b></div>
-        <div class="cmp-track"><div class="cmp-fill lc" id="barLocal" style="width:2%"></div></div>
-      </div>
-      <div class="cmp-row">
-        <div class="cmp-l"><span>CLOUD API COST (same usage)</span><b id="coCloudMo">—</b></div>
-        <div class="cmp-track"><div class="cmp-fill cc" id="barCloud" style="width:2%"></div></div>
-      </div>
-
-      <p class="cost-note">Roughly <span id="coTokens" class="mono"></span> tokens processed per month at your usage. Local electricity cost only — the hardware is yours regardless. Even where cloud is cheaper on paper, local buys you privacy, no rate limits, and independence.</p>
-
-      <p class="field-label" style="margin:18px 0 8px">All cloud services (sorted by price)</p>
-      <div id="cloudList" style="display:flex;flex-direction:column;gap:4px"></div>
-    </div>
-  </div>
-</div>
+    <div class="rail-foot">ESTIMATE · CALIBRATED TO REAL BENCHMARKS · ±15% TYPICAL</div>
+  </aside>
+</div><!-- /.layout -->
 
 </main>
+
 
 <footer>
   LOCAL AI SPEED PLANNER — RUNS ENTIRELY IN YOUR BROWSER<br>
@@ -768,7 +767,7 @@ const USES={
 const HARNESSES={
   bare:{name:"None / bare API",desc:"No framework — just you and the model.",overhead:0},
   light:{name:"Light harness",desc:"Minimal system prompt, no tools (e.g. a simple chat UI like Open WebUI).",overhead:2000},
-  typical:{name:"Typical harness",desc:"System prompt + tool definitions + skills (e.g. standard Hermes/OpenClaw/Cline setup).",overhead:15000},
+  typical:{name:"Typical harness",desc:"System prompt + tool definitions + skills (e.g. standard Hermes, Cline, or Aider setup).",overhead:15000},
   heavy:{name:"Large customised harness",desc:"Large AGENTS.md, SOUL.md, many tools, file context, memory injection.",overhead:50000}
 };
 const CLOUD={

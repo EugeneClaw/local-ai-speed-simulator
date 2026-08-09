@@ -332,7 +332,7 @@ footer{border-top:1px solid var(--line);padding:26px 22px 40px;text-align:center
 
 <div class="intro">
   <h1>How fast would AI run on <em>your own hardware?</em></h1>
-  <p>Answer three questions and we'll show you exactly how it will <b>feel</b> — in plain English. No jargon, no signup, and everything runs right here in your browser. The results panel on the right stays visible as you scroll.</p>
+  <p>Select your config to see how it will run. No jargon. The results panel on the right stays visible as you scroll.</p>
 </div>
 
 <div class="layout">
@@ -341,7 +341,7 @@ footer{border-top:1px solid var(--line);padding:26px 22px 40px;text-align:center
     <!-- STEP 1: What will you use it for? -->
     <div class="step">
       <div class="step-head"><span class="step-num">01</span><span class="step-title">What will you use it for?</span></div>
-      <p class="step-hint">This matters more than anything else. AI "reads" your request before it "writes" an answer — and some jobs involve a <b>lot</b> of reading. (AI reads and writes in <span class="def" title="A token is a chunk of text — roughly ¾ of a word. 1,000 tokens ≈ 750 words ≈ a page and a half.">tokens</span>.) Agent frameworks (like Hermes, Cline, Aider, or similar) silently inject large instruction files (AGENTS.md, system prompts, tool definitions, skills) into <b>every single exchange</b> — easily 10K–60K tokens before you've typed a word.</p>
+      <p class="step-hint">This matters more than you may realise. AI reads your request before it writes an answer, which includes prompt injections, as well as codebases or documents which can be large. Agentic harnesses like Hermes or Openclaw silently include in each prompt instruction files (AGENTS.md, system prompts, tool definitions, skills) into every single exchange - easily 10K–60K tokens before you've typed a word.</p>
       <div class="use-grid" id="useGrid"></div>
       <div style="margin-top:14px">
         <p class="field-label">Framework / context injection <span style="text-transform:none;letter-spacing:0;color:var(--tx3)">— how much invisible overhead does your tool add?</span></p>
@@ -536,17 +536,12 @@ Calibrated against published real-world measurements; typical accuracy ±15%.</d
         <div class="sov-card">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M18.2 8.5a4.5 4.5 0 0 1 0 7c-2.5 2-5.5-1-8-3.5S4.2 6.5 5.8 8.5a4.5 4.5 0 0 1 0 7" transform="rotate(90 12 12)"/></svg>
           <div class="sv-t">No rate limits</div>
-          <div class="sv-d">Run a thousand agent steps at 3 AM. Nobody throttles you, queues you, or cuts you off.</div>
+          <div class="sv-d">No sudden '5 hour window' service denials while in middle of doing great work!</div>
         </div>
         <div class="sov-card">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 3l18 18M10.7 5.1A11 11 0 0 1 21 9M5 9a11 11 0 0 1 2.3-2.4M8.5 12.5a6 6 0 0 1 5.5-1.6M12 18h.01"/></svg>
           <div class="sv-t">Works offline</div>
           <div class="sv-d">Plane, cabin, outage, apocalypse. If it has power, it works. No subscription can be revoked.</div>
-        </div>
-        <div class="sov-card">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M16 12h.01M4 10h16"/></svg>
-          <div class="sv-t">Fixed cost</div>
-          <div class="sv-d">Buy once, pay a few dollars of power a month. Your bill never surprises you again.</div>
         </div>
       </div>
 

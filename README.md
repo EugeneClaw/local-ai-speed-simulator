@@ -2,7 +2,7 @@
 
 **A single-page tool that shows you how fast an AI model would run on your own hardware — before you spend thousands.**
 
-https://eugine.github.io/local-ai-speed-simulator/
+https://eugineclaw.github.io/local-ai-speed-simulator/
 
 ---
 
@@ -53,7 +53,7 @@ Just `index.html`. Single file, no build step, no dependencies. Copy it anywhere
 ## Running locally
 
 ```bash
-git clone https://github.com/eugine/local-ai-speed-simulator.git
+git clone https://github.com/EugeneClaw/local-ai-speed-simulator.git
 cd local-ai-speed-simulator
 open index.html
 ```

@@ -2,7 +2,7 @@
 
 **A single-page tool that shows you how fast an AI model would run on your own hardware — before you spend thousands.**
 
-https://eugineclaw.github.io/local-ai-speed-simulator/
+https://eugeneclaw.github.io/local-ai-speed-simulator/
 
 ---
 

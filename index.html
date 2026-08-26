@@ -432,6 +432,7 @@ footer{border-top:1px solid var(--line);padding:26px 22px 40px;text-align:center
           <input type="checkbox" id="optVllm">
           <div><div class="o-t">High-performance server (vLLM)</div><div class="o-d">Free, standard serving software that squeezes ~<b>1.5× more speed</b> out of NVIDIA chips. (No effect on Apple silicon.)</div></div>
         </div>
+        <div class="note-box" style="margin-top:2px"><b>Machine preset:</b> each device loads its typical real-world config — a <b>DGX Spark</b> defaults to <b>MTP + vLLM on</b>, other hardware to off. Switching device reloads the preset; you can tweak from there.</div>
         <div class="opt">
           <input type="checkbox" id="optKv">
           <div><div class="o-t">Compressed short-term memory (KV Q4)</div><div class="o-d">Shrinks the model's running memory of your conversation to a quarter of the size — lets you fit <b>much longer documents</b>, at a tiny quality cost.</div></div>
@@ -723,18 +724,21 @@ const MODELS={
     desc:"Huge but sparse — surprisingly quick once you can fit it. Estimated specs."},
   custom:{name:"Custom model",custom:true,desc:"Define your own architecture below."}
 };
-const TP_NVIDIA={1:1,2:.8,3:.75,4:.7,5:.68,6:.65,7:.62,8:.6}, TP_APPLE={1:1,2:.7,3:.65,4:.6},
+// TP efficiency favours power-of-two node counts (tensor parallelism): odd counts (3/5/7)
+// land between the even tiers — they add memory pool & concurrency (expert parallelism),
+// but little per-request speed over the even count below them.
+const TP_NVIDIA={1:1,2:.8,3:.55,4:.7,5:.55,6:.65,7:.55,8:.6}, TP_APPLE={1:1,2:.7,3:.65,4:.6},
   CLUSTER={1:1,2:.85,3:.8,4:.75}; // Mac Studio M5 cluster (Thunderbolt 5 + RDMA) — Apple: 4 Studios ≈ 3× a single one
 const DEVICES={
-  dgx:{name:"DGX Spark",vendor:"nvidia",bw:273,tflops:1000,tdp:140,fp4:true,variants:[{ram:128}],tpEff:{1:1,2:.85,3:.8,4:.75,5:.72,6:.7,7:.68,8:.65},
+  dgx:{name:"DGX Spark",vendor:"nvidia",bw:273,tflops:1000,tdp:140,fp4:true,variants:[{ram:128}],tpEff:{1:1,2:.85,3:.58,4:.75,5:.58,6:.7,7:.58,8:.65},
     blurb:"NVIDIA's desk-sized AI box. Enormous compute for thinking, modest bandwidth for writing."},
   rtx5090:{name:"RTX 5090",vendor:"nvidia",bw:1792,tflops:429,tdp:575,fp4:true,variants:[{ram:32}],tpEff:TP_NVIDIA,
     blurb:"Consumer flagship. Incredible bandwidth per dollar — but only 32 GB each, so big models spill to the CPU."},
   rtx4090:{name:"RTX 4090",vendor:"nvidia",bw:1008,tflops:330,tdp:450,fp4:false,variants:[{ram:24}],tpEff:TP_NVIDIA,
     blurb:"Last-gen favorite. Great all-rounder for mid-size models."},
-  rtx3090:{name:"RTX 3090",vendor:"nvidia",bw:936,tflops:142,tdp:350,fp4:false,variants:[{ram:24}],tpEff:{1:1,2:.78,3:.73,4:.68,5:.65,6:.63,7:.6,8:.58},
+  rtx3090:{name:"RTX 3090",vendor:"nvidia",bw:936,tflops:142,tdp:350,fp4:false,variants:[{ram:24}],tpEff:{1:1,2:.78,3:.54,4:.68,5:.53,6:.63,7:.52,8:.58},
     blurb:"The budget legend. Cheap used, and stacks well."},
-  rtx6000:{name:"RTX 6000 Ada",vendor:"nvidia",bw:960,tflops:330,tdp:300,fp4:false,variants:[{ram:48}],tpEff:{1:1,2:.82,3:.78,4:.75,5:.72,6:.7,7:.68,8:.65},
+  rtx6000:{name:"RTX 6000 Ada",vendor:"nvidia",bw:960,tflops:330,tdp:300,fp4:false,variants:[{ram:48}],tpEff:{1:1,2:.82,3:.57,4:.75,5:.58,6:.7,7:.58,8:.65},
     blurb:"Workstation card with 48 GB — pricey, but quiet and reliable."},
   m5ultra:{name:"Mac Studio M5 Ultra",vendor:"apple",cluster:true,bw:1200,tflops:108,tdp:250,fp4:false,variants:[{ram:96},{ram:256},{ram:512}],tpEff:CLUSTER,
     blurb:"The new flagship — 80-core GPU with Neural Accelerators, 1.2 TB/s memory, up to 512GB. Apple rates LLM prefill ~4× an M3 Ultra."},
@@ -785,6 +789,9 @@ const ELECTRICITY={
 };
 
 /* ==================== STATE ==================== */
+/* typical real-world config per machine: a DGX Spark ships with MTP + vLLM enabled */
+const PRESETS={dgx:{mtp:true,vllm:true}}, DEF_PRESET={mtp:false,vllm:false};
+let hashPinned={mtp:false,vllm:false}; // true when a share URL explicitly set the toggle
 const S={use:"agent",harness:"typical",model:"dsv4",quant:"q4",dev:"dgx",n:1,variant:0,
   prompt:2300,gen:200,ctx:4096,mtp:false,vllm:false,kvq4:false,pfx:false,conc:1,
   cm:{name:"My Model",totalB:70,activeB:70,L:80,H:8,D:128,mla:false},
@@ -855,9 +862,9 @@ function calc(){
 /* ==================== VERIFIED BENCHMARKS ==================== */
 function verifiedFor(){
   const c=[
-    {t:19.1,ok:()=>S.dev==="dgx"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2",txt:"measured 19.1 t/s on 1× DGX Spark"},
+    {t:19.1,ok:()=>S.dev==="dgx"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2"&&!S.mtp&&!S.vllm,txt:"measured 19.1 t/s on 1× DGX Spark (bare — no MTP/vLLM)"},
     {t:55,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.mtp&&S.vllm,txt:"measured 55 t/s on 2× DGX Spark"},
-    {t:40,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.ctx>=500000,txt:"measured 40 t/s at 1M context on 2× DGX Spark"},
+    {t:40,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.ctx>=500000&&S.mtp&&S.vllm,txt:"measured 40 t/s at 1M context on 2× DGX Spark"},
     {t:17,ok:()=>S.dev==="m3ultra"&&getDevice().ram===512&&S.model==="glm52"&&S.quant==="q4",txt:"measured 17 t/s on M3 Ultra 512GB"},
     {t:56,ok:()=>S.dev==="rtx5090"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2",txt:"measured 56 t/s on RTX 5090 (CPU-offloaded)"}
   ];
@@ -917,7 +924,7 @@ function renderAll(){
       sn.className="split-note show "+(eff>=80?"good":eff>=70?"warn":"warn");
       $("splitTitle").textContent=R.isNV?("SPLIT ACROSS "+R.n+" UNITS — "+eff+"% EFFICIENT"):(R.n+" MACS CLUSTERED — "+eff+"% EFFICIENT");
       $("splitText").textContent=R.isNV?
-        "They pool their memory and act as one machine, but coordinating costs speed — that's the efficiency number. Amber means you're paying a coordination tax: more units let you run BIGGER models, they don't make one answer faster.":
+        "They pool their memory and act as one machine, but coordinating costs speed — that's the efficiency number. Power-of-two counts (2/4/6/8) are the tensor-parallelism sweet spot; odd counts (3/5/7) mostly add memory pool and concurrency (expert parallelism), with little per-request speed over the even count below them.":
         "Thunderbolt 5 + RDMA share one memory pool, so the cluster acts like one bigger machine — Apple rates 4 Studios ≈ 3× a single one. The interconnect costs speed, which is the efficiency number.";
     }else{
       sn.className="split-note show info";
@@ -1100,7 +1107,7 @@ function buildDevSel(){
     s.appendChild(og);
   });
   s.value=S.dev;
-  s.addEventListener("change",()=>{S.dev=s.value;S.n=1;S.variant=(DEVICES[s.value].variants||[{ }]).length-1;buildVariantSel();buildCountRow();renderDevMeta();renderAll();});
+  s.addEventListener("change",()=>{S.dev=s.value;S.n=1;S.variant=(DEVICES[s.value].variants||[{ }]).length-1;applyDevicePreset(true);buildVariantSel();buildCountRow();renderDevMeta();renderAll();});
   buildVariantSel();buildCountRow();renderDevMeta();
 }
 function buildVariantSel(){
@@ -1262,7 +1269,7 @@ function buildSimQuickSwap(){
       cr.appendChild(b);});
   }
   syncSimVar();syncSimCount();
-  ds.addEventListener("change",()=>{S.dev=ds.value;S.variant=0;syncSimVar();syncSimCount();renderAll();});
+  ds.addEventListener("change",()=>{S.dev=ds.value;S.variant=0;applyDevicePreset(true);syncSimVar();syncSimCount();renderAll();});
   ms.addEventListener("change",()=>{S.model=ms.value;renderAll();});
   qs.addEventListener("change",()=>{S.quant=qs.value;renderAll();});
   vs.addEventListener("change",()=>{S.variant=parseInt(vs.value)||0;renderAll();});
@@ -1271,6 +1278,13 @@ function buildSimQuickSwap(){
 }
 
 /* ==================== HASH / SHARE ==================== */
+function applyDevicePreset(force){
+  const p=PRESETS[S.dev]||DEF_PRESET;
+  if(force||!hashPinned.mtp)S.mtp=p.mtp;
+  if(force||!hashPinned.vllm)S.vllm=p.vllm;
+  const om=$("optMtp"),ov=$("optVllm");if(om)om.checked=S.mtp;if(ov)ov.checked=S.vllm;
+  const sm=$("simMtp"),sv=$("simVllm");if(sm)sm.checked=S.mtp;if(sv)sv.checked=S.vllm;
+}
 function writeHash(){
   const p=new URLSearchParams();
   p.set("u",S.use);p.set("h",S.harness);p.set("m",S.model);p.set("q",S.quant);
@@ -1295,7 +1309,9 @@ function applyHash(){
   if(num(g("pt"),0))S.prompt=Math.min(2e6,num(g("pt"),S.prompt));
   if(num(g("gt"),0))S.gen=Math.min(1e5,num(g("gt"),S.gen));
   if(num(g("cx"),0))S.ctx=Math.min(2e6,Math.max(1024,num(g("cx"),S.ctx)));
-  S.mtp=g("mtp")==="1";S.vllm=g("vl")==="1";S.kvq4=g("kv")==="1";S.pfx=g("pfx")==="1";
+  hashPinned.mtp=g("mtp")!=null;if(hashPinned.mtp)S.mtp=g("mtp")==="1";
+  hashPinned.vllm=g("vl")!=null;if(hashPinned.vllm)S.vllm=g("vl")==="1";
+  S.kvq4=g("kv")==="1";S.pfx=g("pfx")==="1";
   const cc=parseInt(g("c"));if(cc>=1&&cc<=32)S.conc=cc;
   if(S.model==="custom"){S.cm.totalB=num(g("cmt"),70);S.cm.activeB=num(g("cma"),S.cm.totalB);S.cm.L=num(g("cml"),80);S.cm.H=num(g("cmh"),8);S.cm.D=num(g("cmd"),128);S.cm.mla=g("cmmla")==="1";}
   if(S.dev==="custom"){S.cd.ram=num(g("cdr"),64);S.cd.bw=num(g("cdb"),500);S.cd.tflops=num(g("cdt"),100);S.cd.tdp=num(g("cdw"),300);if(g("cdty")==="apple")S.cd.vendor="apple";S.cd.fp4=g("cdf")==="1";}
@@ -1363,6 +1379,7 @@ function init(){
     else done();
   });
   applyHash();
+  applyDevicePreset(false);
   syncControls();
   renderAll();
 }

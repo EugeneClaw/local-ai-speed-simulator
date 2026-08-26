@@ -46,6 +46,10 @@ The engine is calibrated against **published real-world benchmarks** with typica
 
 **The hard part of LLM inference is the AGENTIC WALL** — for agentic workloads, the prompt (system prompt, AGENTS.md, tool definitions, accumulated context) is 10K–60K tokens before the model writes a word. This dominates total time. The simulator makes this visible: change the workload from "casual chat" to "autonomous agent" and watch prefill time explode.
 
+**Machine presets.** Each device loads its typical real-world serving config: a **DGX Spark defaults to MTP + vLLM enabled** (the standard stack on it), so comparisons show configured boxes, not bare defaults — the 18.9 t/s row above is the bare no-MTP baseline. Switching device reloads the preset; the Advanced knobs let you tweak from there.
+
+**Multi-unit scaling favours even counts.** Tensor parallelism prefers 2/4/6/8 nodes; odd counts (3/5/7) land between the even tiers — they buy memory pool size and concurrency (expert parallelism), with little per-request speed over the even count below them.
+
 **Mac Studio M5 Ultra / M5 Max** have no independent benchmarks yet — their compute figures follow Apple's launch claims (LLM prompt processing ≈ **4×** an M3 Ultra for the M5 Ultra, **3.9×** an M4 Max for the M5 Max, per the Aug 2026 Mac Studio press release). Treat their results as estimates until measured.
 
 ## What's in the box
@@ -65,7 +69,7 @@ Or just open `index.html` directly — `file://` works fine. (Share button requi
 ## Hardware coverage
 
 **NVIDIA consumer/prosumer** (memory pools across units):
-- DGX Spark — 1× to 8× (128GB each, 273 GB/s, 1000 TFLOPS)
+- DGX Spark — 1× to 8× (128GB each, 273 GB/s, 1000 TFLOPS; TP favours 2/4/6/8 — odd counts add memory pool & concurrency more than per-request speed)
 - RTX 5090 / RTX 4090 / RTX 3090 / RTX 6000 Ada — 1× to 8×
 
 **Apple Silicon** (max 4×):

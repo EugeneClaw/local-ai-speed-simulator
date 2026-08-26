@@ -419,7 +419,7 @@ footer{border-top:1px solid var(--line);padding:26px 22px 40px;text-align:center
         <div><label>Compute (TFLOPS)</label><input id="cdTf" type="number" value="100" min="1"></div>
         <div><label>Power (W)</label><input id="cdTdp" type="number" value="300" min="1"></div>
         <div><label>Chip style</label><select id="cdType"><option value="nvidia">NVIDIA-like (CUDA)</option><option value="apple">Apple-like (unified memory)</option></select></div>
-        <div class="cf-full check-row"><input type="checkbox" id="cdFp4"><span>Has FP4 hardware acceleration (Blackwell-generation or newer)</span></div>
+        <div class="cf-full">Blackwell-era FP4 hardware is already reflected in the device's bandwidth/compute — no extra toggle needed.</div>
       </div>
     </div>
 
@@ -797,16 +797,20 @@ const ELECTRICITY={
 const PRESETS={dgx:{mtp:true,vllm:true}}, DEF_PRESET={mtp:false,vllm:false};
 // displayed speeds are PEAK; prose shows the realistic typical band as a fraction of peak
 const PEAK_LO=.4, PEAK_HI=.7;
-// Decode/prefill efficiency was re-balanced with the per-quant factor so speeds are smooth
-// and monotonic (lower quant = fewer bytes = faster decode), with measured anchors holding:
-// 1x Spark DSv4 IQ2 bare = 19.1, 2x Spark Q4+MTP ~= 55, RTX 5090 IQ2 offload ~= 56.
-// NVDEC/NVPRE derive from the old .5/.45 and the IQ2 factor 0.45 -> 0.7 so IQ2 stays put.
-const NVDEC=.5*(.45/.7), NVPRE=.45*(.45/.7);        // NVIDIA decode/prefill efficiency 0.3214 / 0.2893
+// Quant-aware speed (v1.2.5 overhaul). Decode is bandwidth-bound: smaller quants read fewer
+// bytes per token and are faster — the 1/bpw size effect lives in activeGB. QUANT_SPEED is only
+// the residual vs pure bandwidth, anchored to the real measurements (1x Spark: IQ2=19.1 and
+// 2x Q4=~55 imply IQ2 only ~1.26x Q4): big quants track bandwidth almost exactly, ultra-low
+// quants lose a chunk to dequant/compute overhead. Prefill is compute-bound (the matmuls run at
+// model precision regardless of storage quant), so it has NO quant factor — the agentic wall
+// reads the same on every quant; only the hardware moves it.
+const QUANT_SPEED={q8:.98,q6:1.04,q5:1.02,q4:1,iq3:.73,iq2:.56,iq1:.47};
+// NVIDIA decode/prefill efficiency (re-anchored in v1.2.5):
+//  decode : 1x Spark IQ2 bare = 18.9 (19.1), 2x Q4+MTP ~= 51 (~55), 5090 IQ2 offload = 55.8 (~56)
+//  prefill: compute-bound and quant-independent; 2x Spark Q4 stack reads ~5.7K tok/s at 131K
+//           (the user's measured ~4 s per 23K agent prompt)
+const NVDEC=.402, NVPRE=.3664;
 const APPLE_PRE=.62; // Apple prefill efficiency — scaled from official MLX benchmarks
-                    // (M4 Max: Qwen3-30B-A3B ~3B active = 1,754 tok/s prompt @2048 → 13B-active
-                    // ≈ 400 t/s, M3 Ultra ≈ 640 t/s, GLM-5.2 40B-active ≈ 210 t/s; all reproduce
-                    // with *0.62). Apple decode efficiency stays at the calibrated .4.
-const QB={q8:.85,q6:.95,q5:1,iq3:.8,iq2:.7,iq1:.65}; // mild dequant tax on the smallest quants
 let hashPinned={mtp:false,vllm:false,pt:false,gt:false,cx:false}; // true when a share URL explicitly set a value
 let fitNote=""; // set by ensureFitQuant() when it auto-selects a fitting quant
 const S={use:"agent",harness:"typical",model:"dsv4",quant:"q4",dev:"dgx",n:1,variant:0,
@@ -855,7 +859,7 @@ function calc(){
   const aggTF=canPool?d.tflops*n*tpEff:d.tflops*n; // aggregate compute: N units × efficiency for NV/clusters
   const poolRAM=canPool?d.ram*n:d.ram;
   const usable=.85*poolRAM;
-  let qb=QB[q]||1; if(q==="q4"&&d.fp4)qb=1.2; // FP4-native devices decode Q4 a touch faster
+  let qb=QUANT_SPEED[q]||1; // decode only — bandwidth term (activeGB) already carries quant size
   const mtpF=S.mtp?2:1, vllmF=(S.vllm&&isNV)?1.5:1;
   const hwD=isNV?NVDEC:.4, hwP=isNV?NVPRE:APPLE_PRE;
   // prefill degradation is vendor-aware: NVIDIA's huge tensor compute makes the O(n) attention
@@ -866,7 +870,7 @@ function calc(){
     : Math.max(.30,1-.26*Math.log2(ctx/32768)));
   const ddeg=ctx<=32768?1:Math.max(.5,1-.075*Math.log2(ctx/32768));
   let decode=(aggBW/activeGB)*hwD*qb*mtpF*vllmF*ddeg;
-  let prefill=(aggTF*1000/(2*m.activeB))*hwP*qb*vllmF*deg;
+  let prefill=(aggTF*1000/(2*m.activeB))*hwP*vllmF*deg; // compute-bound: quant-independent
   const weightsFit=weights<=usable;
   const kvFit=(weights+kv)<=usable;
   const offloaded=!weightsFit;
@@ -1385,7 +1389,7 @@ function writeHash(){
   p.set("pt",Math.round(S.prompt));p.set("gt",Math.round(S.gen));p.set("cx",Math.round(S.ctx));
   p.set("mtp",S.mtp?1:0);p.set("vl",S.vllm?1:0);p.set("kv",S.kvq4?1:0);p.set("pfx",S.pfx?1:0);p.set("c",S.conc);
   if(S.model==="custom"){p.set("cmt",S.cm.totalB);p.set("cma",S.cm.activeB);p.set("cml",S.cm.L);p.set("cmh",S.cm.H);p.set("cmd",S.cm.D);p.set("cmmla",S.cm.mla?1:0);}
-  if(S.dev==="custom"){p.set("cdr",S.cd.ram);p.set("cdb",S.cd.bw);p.set("cdt",S.cd.tflops);p.set("cdw",S.cd.tdp);p.set("cdty",S.cd.vendor);p.set("cdf",S.cd.fp4?1:0);}
+  if(S.dev==="custom"){p.set("cdr",S.cd.ram);p.set("cdb",S.cd.bw);p.set("cdt",S.cd.tflops);p.set("cdw",S.cd.tdp);p.set("cdty",S.cd.vendor);}
   history.replaceState(null,"","#"+p.toString());
 }
 function applyHash(){
@@ -1407,7 +1411,7 @@ function applyHash(){
   S.kvq4=g("kv")==="1";S.pfx=g("pfx")==="1";
   const cc=parseInt(g("c"));if(cc>=1&&cc<=32)S.conc=cc;
   if(S.model==="custom"){S.cm.totalB=num(g("cmt"),70);S.cm.activeB=num(g("cma"),S.cm.totalB);S.cm.L=num(g("cml"),80);S.cm.H=num(g("cmh"),8);S.cm.D=num(g("cmd"),128);S.cm.mla=g("cmmla")==="1";}
-  if(S.dev==="custom"){S.cd.ram=num(g("cdr"),64);S.cd.bw=num(g("cdb"),500);S.cd.tflops=num(g("cdt"),100);S.cd.tdp=num(g("cdw"),300);if(g("cdty")==="apple")S.cd.vendor="apple";S.cd.fp4=g("cdf")==="1";}
+  if(S.dev==="custom"){S.cd.ram=num(g("cdr"),64);S.cd.bw=num(g("cdb"),500);S.cd.tflops=num(g("cdt"),100);S.cd.tdp=num(g("cdw"),300);if(g("cdty")==="apple")S.cd.vendor="apple";}
 }
 function syncControls(){
   $("modelSel").value=S.model;renderModelMeta();
@@ -1418,7 +1422,7 @@ function syncControls(){
   $("optMtp").checked=S.mtp;$("optVllm").checked=S.vllm;$("optKv").checked=S.kvq4;$("optPfx").checked=S.pfx;
   $("concVal").textContent=S.conc;
   $("cmTotal").value=S.cm.totalB;$("cmActive").value=S.cm.activeB;$("cmL").value=S.cm.L;$("cmH").value=S.cm.H;$("cmD").value=S.cm.D;$("cmMla").checked=S.cm.mla;
-  $("cdRam").value=S.cd.ram;$("cdBw").value=S.cd.bw;$("cdTf").value=S.cd.tflops;$("cdTdp").value=S.cd.tdp;$("cdType").value=S.cd.vendor;$("cdFp4").checked=S.cd.fp4;
+  $("cdRam").value=S.cd.ram;$("cdBw").value=S.cd.bw;$("cdTf").value=S.cd.tflops;$("cdTdp").value=S.cd.tdp;$("cdType").value=S.cd.vendor;
 }
 
 /* ==================== THEME ==================== */
@@ -1451,9 +1455,9 @@ function init(){
   ["cmName","cmTotal","cmActive","cmL","cmH","cmD"].forEach(id=>$(id).addEventListener("input",cmUpd));
   $("cmMla").addEventListener("change",cmUpd);
   /* custom device */
-  const cdUpd=()=>{S.cd.name=$("cdName").value.slice(0,40);S.cd.ram=num($("cdRam").value,64);S.cd.bw=num($("cdBw").value,500);S.cd.tflops=num($("cdTf").value,100);S.cd.tdp=num($("cdTdp").value,300);S.cd.vendor=$("cdType").value;S.cd.fp4=$("cdFp4").checked;buildCountRow();renderDevMeta();renderAll();};
+  const cdUpd=()=>{S.cd.name=$("cdName").value.slice(0,40);S.cd.ram=num($("cdRam").value,64);S.cd.bw=num($("cdBw").value,500);S.cd.tflops=num($("cdTf").value,100);S.cd.tdp=num($("cdTdp").value,300);S.cd.vendor=$("cdType").value;buildCountRow();renderDevMeta();renderAll();};
   ["cdName","cdRam","cdBw","cdTf","cdTdp"].forEach(id=>$(id).addEventListener("input",cdUpd));
-  $("cdType").addEventListener("change",cdUpd);$("cdFp4").addEventListener("change",cdUpd);
+  $("cdType").addEventListener("change",cdUpd);
   /* sim */
   document.querySelectorAll(".sp-btn").forEach(b=>b.addEventListener("click",()=>{
     simScen=b.dataset.scen;document.querySelectorAll(".sp-btn").forEach(x=>x.classList.toggle("on",x===b));stopSim();

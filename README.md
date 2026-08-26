@@ -58,6 +58,8 @@ The engine is calibrated against **published real-world benchmarks** with typica
 
 **Long-context prefill is degraded to reality.** The raw compute ceiling for prefill is optimistic at agent contexts; the model now degrades prefill steeply past 32K so a 1× Spark reads at ~1,000–1,500 tok/s at 127K (matching the reproduction) — agentic "thinking time" is displayed truthfully (~20 s to ingest a 23K agent prompt).
 
+**Apple prefill is anchored to official MLX benchmarks.** Apple's own [mlx-lm benchmarks](https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/BENCHMARKS.md) show an M4 Max processing a ~3B-active MoE at 1,754 tok/s (Q4, 2048-token prompt). Scaling by active parameters and chip compute: a 13B-active model ≈ 640 tok/s on the M3 Ultra, ~210 tok/s for GLM-5.2 (40B active), and the M5 Ultra ≈ 4× the M3 Ultra (Apple's own claimed prefill ratio). Long-context degradation is vendor-aware — Apple's slower per-token compute makes attention a smaller relative cost, so the M3 Ultra's agent-context prefill lands ~300 tok/s (≈ 75 s to ingest a 23K agent prompt), which is what real Mac bundles do rather than the 7-minute numbers the old constant produced.
+
 **Concurrency shares real bandwidth.** Simultaneous users now split decode realistically (aggregate throughput plateaus near ~2× a single request, per batched-serving reproductions), instead of each user keeping nearly full speed. Memory (KV cache) still sets the hard cap on how many fit.
 
 **Multi-unit scaling favours even counts.** Tensor parallelism prefers 2/4/6/8 nodes; odd counts (3/5/7) land between the even tiers — they buy memory pool size and concurrency (expert parallelism), with little per-request speed over the even count below them.

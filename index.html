@@ -801,7 +801,11 @@ const PEAK_LO=.4, PEAK_HI=.7;
 // and monotonic (lower quant = fewer bytes = faster decode), with measured anchors holding:
 // 1x Spark DSv4 IQ2 bare = 19.1, 2x Spark Q4+MTP ~= 55, RTX 5090 IQ2 offload ~= 56.
 // NVDEC/NVPRE derive from the old .5/.45 and the IQ2 factor 0.45 -> 0.7 so IQ2 stays put.
-const NVDEC=.5*(.45/.7), NVPRE=.45*(.45/.7);        // 0.3214 / 0.2893 (Apple side unchanged: .4/.3)
+const NVDEC=.5*(.45/.7), NVPRE=.45*(.45/.7);        // NVIDIA decode/prefill efficiency 0.3214 / 0.2893
+const APPLE_PRE=.62; // Apple prefill efficiency — scaled from official MLX benchmarks
+                    // (M4 Max: Qwen3-30B-A3B ~3B active = 1,754 tok/s prompt @2048 → 13B-active
+                    // ≈ 400 t/s, M3 Ultra ≈ 640 t/s, GLM-5.2 40B-active ≈ 210 t/s; all reproduce
+                    // with *0.62). Apple decode efficiency stays at the calibrated .4.
 const QB={q8:.85,q6:.95,q5:1,iq3:.8,iq2:.7,iq1:.65}; // mild dequant tax on the smallest quants
 let hashPinned={mtp:false,vllm:false,pt:false,gt:false,cx:false}; // true when a share URL explicitly set a value
 let fitNote=""; // set by ensureFitQuant() when it auto-selects a fitting quant
@@ -853,8 +857,13 @@ function calc(){
   const usable=.85*poolRAM;
   let qb=QB[q]||1; if(q==="q4"&&d.fp4)qb=1.2; // FP4-native devices decode Q4 a touch faster
   const mtpF=S.mtp?2:1, vllmF=(S.vllm&&isNV)?1.5:1;
-  const hwD=isNV?NVDEC:.4, hwP=isNV?NVPRE:.3;
-  const deg=ctx<=32768?1:Math.max(.12,1-.42*Math.log2(ctx/32768)); // prefill: long prompts are attention/memory bound — steep degradation, calibrated so DSv4 IQ2 @127K on 1× Spark lands near the reproduced ~1,000 tok/s
+  const hwD=isNV?NVDEC:.4, hwP=isNV?NVPRE:APPLE_PRE;
+  // prefill degradation is vendor-aware: NVIDIA's huge tensor compute makes the O(n) attention
+  // pass dominate at long ctx (steep). Apple's slower per-token compute makes attention a smaller
+  // relative cost (gentler) — calibrated so M3 Ultra's DSv4 prefill at agent ctx matches reality.
+  const deg=ctx<=32768?1:(isNV
+    ? Math.max(.12,1-.42*Math.log2(ctx/32768))
+    : Math.max(.30,1-.26*Math.log2(ctx/32768)));
   const ddeg=ctx<=32768?1:Math.max(.5,1-.075*Math.log2(ctx/32768));
   let decode=(aggBW/activeGB)*hwD*qb*mtpF*vllmF*ddeg;
   let prefill=(aggTF*1000/(2*m.activeB))*hwP*qb*vllmF*deg;

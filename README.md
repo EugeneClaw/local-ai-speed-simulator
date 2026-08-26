@@ -23,7 +23,7 @@ The whole thing runs in your browser. No accounts, no tracking, no data leaves y
 1. **Pick your workload** — quick question, coding agent, deep session, etc.
 2. **Pick your harness** — none, light, typical agent (Hermes/Cline/Aider), or heavy custom
 3. **Pick a model** — DeepSeek-V4-Flash, GLM-5.2, Qwen 3, Llama 4, etc.
-4. **Pick your hardware** — DGX Spark (1-8×), RTX 5090, Mac Studio M3/M2 Ultra, or enter your own
+4. **Pick your hardware** — DGX Spark (1-8×), RTX 5090, Mac Studio M5/M3/M2 Ultra, Mac Studio M5 Max, or enter your own
 5. **See the result** in the right panel — speed, TTFT, memory fit, monthly cost vs cloud
 
 ### Sharing a configuration
@@ -46,6 +46,8 @@ The engine is calibrated against **published real-world benchmarks** with typica
 
 **The hard part of LLM inference is the AGENTIC WALL** — for agentic workloads, the prompt (system prompt, AGENTS.md, tool definitions, accumulated context) is 10K–60K tokens before the model writes a word. This dominates total time. The simulator makes this visible: change the workload from "casual chat" to "autonomous agent" and watch prefill time explode.
 
+**Mac Studio M5 Ultra / M5 Max** have no independent benchmarks yet — their compute figures follow Apple's launch claims (LLM prompt processing ≈ **4×** an M3 Ultra for the M5 Ultra, **3.9×** an M4 Max for the M5 Max, per the Aug 2026 Mac Studio press release). Treat their results as estimates until measured.
+
 ## What's in the box
 
 Just `index.html`. Single file, no build step, no dependencies. Copy it anywhere and open it in a browser.
@@ -66,13 +68,16 @@ Or just open `index.html` directly — `file://` works fine. (Share button requi
 - DGX Spark — 1× to 8× (128GB each, 273 GB/s, 1000 TFLOPS)
 - RTX 5090 / RTX 4090 / RTX 3090 / RTX 6000 Ada — 1× to 8×
 
-**Apple Silicon** (1 copy per machine, max 4×):
+**Apple Silicon** (max 4×):
+- Mac Studio M5 Ultra (96/256/512 GB) — 80-core GPU with Neural Accelerators, 1.2 TB/s; Apple rates LLM prefill ~4× an M3 Ultra
+- Mac Studio M5 Max (36/48/64/128 GB) — 40-core GPU, 614 GB/s; Apple rates LLM prefill ~3.9× an M4 Max
 - Mac Studio M3 Ultra (96/256/512 GB)
-- Mac Studio M2 Ultra (64/128 GB)
+- Mac Studio M2 Ultra (192 GB)
 - Mac Pro M2 Ultra
 - MacBook Pro M4 Max
 - Mac Mini M4 Pro
-- Mac Studio M5 Ultra — **UNRELEASED**, speculative specs
+
+M5 Max and M5 Ultra Studios can **cluster up to 4× over Thunderbolt 5 + RDMA** — they share one memory pool and Apple rates 4 nodes ≈ 3× a single Studio. Older Macs run one copy per machine (memory not shared).
 
 **Custom** — enter your own RAM/bandwidth/compute if you don't see your rig.
 

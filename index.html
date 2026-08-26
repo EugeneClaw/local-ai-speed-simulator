@@ -723,7 +723,8 @@ const MODELS={
     desc:"Huge but sparse — surprisingly quick once you can fit it. Estimated specs."},
   custom:{name:"Custom model",custom:true,desc:"Define your own architecture below."}
 };
-const TP_NVIDIA={1:1,2:.8,3:.75,4:.7,5:.68,6:.65,7:.62,8:.6}, TP_APPLE={1:1,2:.7,3:.65,4:.6};
+const TP_NVIDIA={1:1,2:.8,3:.75,4:.7,5:.68,6:.65,7:.62,8:.6}, TP_APPLE={1:1,2:.7,3:.65,4:.6},
+  CLUSTER={1:1,2:.85,3:.8,4:.75}; // Mac Studio M5 cluster (Thunderbolt 5 + RDMA) — Apple: 4 Studios ≈ 3× a single one
 const DEVICES={
   dgx:{name:"DGX Spark",vendor:"nvidia",bw:273,tflops:1000,tdp:140,fp4:true,variants:[{ram:128}],tpEff:{1:1,2:.85,3:.8,4:.75,5:.72,6:.7,7:.68,8:.65},
     blurb:"NVIDIA's desk-sized AI box. Enormous compute for thinking, modest bandwidth for writing."},
@@ -735,8 +736,10 @@ const DEVICES={
     blurb:"The budget legend. Cheap used, and stacks well."},
   rtx6000:{name:"RTX 6000 Ada",vendor:"nvidia",bw:960,tflops:330,tdp:300,fp4:false,variants:[{ram:48}],tpEff:{1:1,2:.82,3:.78,4:.75,5:.72,6:.7,7:.68,8:.65},
     blurb:"Workstation card with 48 GB — pricey, but quiet and reliable."},
-  m5ultra:{name:"Mac Studio M5 Ultra",vendor:"apple",spec:true,bw:1200,tflops:35,tdp:250,fp4:false,variants:[{ram:256},{ram:512}],tpEff:TP_APPLE,
-    blurb:"UNRELEASED — specs are educated guesses based on Apple's trajectory."},
+  m5ultra:{name:"Mac Studio M5 Ultra",vendor:"apple",cluster:true,bw:1200,tflops:108,tdp:250,fp4:false,variants:[{ram:96},{ram:256},{ram:512}],tpEff:CLUSTER,
+    blurb:"The new flagship — 80-core GPU with Neural Accelerators, 1.2 TB/s memory, up to 512GB. Apple rates LLM prefill ~4× an M3 Ultra."},
+  m5max:{name:"Mac Studio M5 Max",vendor:"apple",cluster:true,bw:614,tflops:66.3,tdp:150,fp4:false,variants:[{ram:36},{ram:48},{ram:64},{ram:128}],tpEff:CLUSTER,
+    blurb:"Neural Accelerators in every GPU core, 614 GB/s, up to 128GB. Apple rates LLM prefill ~3.9× an M4 Max."},
   m3ultra:{name:"Mac Studio M3 Ultra",vendor:"apple",bw:819,tflops:27,tdp:215,fp4:false,variants:[{ram:96},{ram:256},{ram:512}],tpEff:TP_APPLE,
     blurb:"Up to half a terabyte of unified memory — the only desktop that fits the biggest models whole."},
   m2studio:{name:"Mac Studio M2 Ultra",vendor:"apple",bw:800,tflops:27,tdp:215,fp4:false,variants:[{ram:192}],tpEff:TP_APPLE,
@@ -806,7 +809,7 @@ function getDevice(){
   if(S.dev==="custom"){const c=S.cd;return{name:c.name||"Custom device",vendor:c.vendor,ram:c.ram,bw:c.bw,tflops:c.tflops,tdp:c.tdp,fp4:c.fp4,tpEff:c.vendor==="nvidia"?TP_NVIDIA:TP_APPLE};}
   const d=DEVICES[S.dev]||DEVICES.dgx;
   const v=d.variants[Math.min(S.variant,d.variants.length-1)];
-  return{name:d.name,vendor:d.vendor,ram:v.ram,bw:d.bw,tflops:d.tflops,tdp:d.tdp,fp4:d.fp4,tpEff:d.tpEff,spec:d.spec};
+  return{name:d.name,vendor:d.vendor,ram:v.ram,bw:d.bw,tflops:d.tflops,tdp:d.tdp,fp4:d.fp4,tpEff:d.tpEff,spec:d.spec,cluster:d.cluster};
 }
 
 /* ==================== CALC ENGINE (calibrated — do not alter physics) ==================== */
@@ -819,11 +822,12 @@ function calc(){
   const ctx=S.ctx;
   const bpe=S.kvq4?.5:2;
   let kv=2*m.L*m.H*m.D*ctx*bpe/1e9; if(m.mla)kv*=.3;
-  // NVIDIA pools memory across units; Apple runs one copy per machine
-  const tpEff=isNV?(d.tpEff[n]||1):1;
-  const aggBW=d.bw*n*(isNV?tpEff:1);     // aggregate bandwidth: N units × tpEff for NVIDIA
-  const aggTF=d.tflops*n*(isNV?tpEff:1);  // aggregate compute: N units × tpEff for NVIDIA
-  const poolRAM=isNV?d.ram*n:d.ram;
+  // NVIDIA pools memory across units; M5 Max/Ultra Studios cluster over Thunderbolt 5 + RDMA
+  const canPool=isNV||d.cluster;
+  const tpEff=canPool?(d.tpEff[n]||1):1;
+  const aggBW=canPool?d.bw*n*tpEff:d.bw*n;        // aggregate bandwidth: N units × efficiency for NV/clusters
+  const aggTF=canPool?d.tflops*n*tpEff:d.tflops*n; // aggregate compute: N units × efficiency for NV/clusters
+  const poolRAM=canPool?d.ram*n:d.ram;
   const usable=.85*poolRAM;
   let qb=1; if(q==="q4"&&d.fp4)qb=1.2; if(q==="iq1"||q==="iq2"||q==="iq3")qb=.45;
   const mtpF=S.mtp?2:1, vllmF=(S.vllm&&isNV)?1.5:1;
@@ -908,11 +912,13 @@ function renderAll(){
   const sn=$("splitNote");
   if(R.n>1){
     sn.classList.add("show");
-    if(R.isNV){
+    if(R.isNV||R.d.cluster){
       const eff=Math.round(R.tpEff*100);
       sn.className="split-note show "+(eff>=80?"good":eff>=70?"warn":"warn");
-      $("splitTitle").textContent="SPLIT ACROSS "+R.n+" UNITS — "+eff+"% EFFICIENT";
-      $("splitText").textContent="They pool their memory and act as one machine, but coordinating costs speed — that's the efficiency number. Amber means you're paying a coordination tax: more units let you run BIGGER models, they don't make one answer faster.";
+      $("splitTitle").textContent=R.isNV?("SPLIT ACROSS "+R.n+" UNITS — "+eff+"% EFFICIENT"):(R.n+" MACS CLUSTERED — "+eff+"% EFFICIENT");
+      $("splitText").textContent=R.isNV?
+        "They pool their memory and act as one machine, but coordinating costs speed — that's the efficiency number. Amber means you're paying a coordination tax: more units let you run BIGGER models, they don't make one answer faster.":
+        "Thunderbolt 5 + RDMA share one memory pool, so the cluster acts like one bigger machine — Apple rates 4 Studios ≈ 3× a single one. The interconnect costs speed, which is the efficiency number.";
     }else{
       sn.className="split-note show info";
       $("splitTitle").textContent=R.n+" INDEPENDENT MACS — MEMORY NOT SHARED";
@@ -926,7 +932,7 @@ function renderAll(){
   $("memOver").style.width=(!R.kvFit)?Math.min(100,(R.weights+R.kv-R.usable)/scale*100)+"%":"0%";
   $("legW").textContent="model "+fmtGB(R.weights);
   $("legK").textContent="conversation "+fmtGB(R.kv);
-  $("legFree").textContent="usable "+fmtGB(R.usable)+(R.isNV&&R.n>1?" (pooled)":"");
+  $("legFree").textContent="usable "+fmtGB(R.usable)+((R.isNV||R.d.cluster)&&R.n>1?" (pooled)":"");
   const mn=$("memNote");
   if(!R.weightsFit){mn.className="mem-note r";mn.textContent="✗ Model doesn't fit — layers would spill to the CPU, which is why the speed above is heavily penalized. Add units, choose more memory, or compress harder.";}
   else if(!R.kvFit){mn.className="mem-note a";mn.textContent="△ Model fits, but the conversation memory at this context length overflows. Shorten the context or turn on KV Q4 in Advanced.";}
@@ -1086,7 +1092,7 @@ function buildQuantGrid(){
 function buildDevSel(){
   const s=$("devSel");
   const groups=[["NVIDIA — memory pools across units",["dgx","rtx5090","rtx4090","rtx3090","rtx6000"]],
-    ["Apple — one copy per machine",["m5ultra","m3ultra","m2studio","m2pro","mbp","mini"]],
+    ["Apple — M5 cluster over Thunderbolt 5; older Macs one copy each",["m5ultra","m5max","m3ultra","m2studio","m2pro","mbp","mini"]],
     ["Bring your own",["custom"]]];
   groups.forEach(([label,keys])=>{
     const og=el("optgroup");og.label=label;
@@ -1121,8 +1127,9 @@ function renderDevMeta(){
   const d=getDevice();
   $("devBlurb").textContent=(DEVICES[S.dev]&&DEVICES[S.dev].blurb)||"";
   const isNV=d.vendor==="nvidia";
-  $("dsRam").textContent=isNV?fmtGB(d.ram*S.n):fmtGB(d.ram);
-  $("dsRamS").textContent=isNV?(S.n>1?"pooled across "+S.n+" units":"in one box"):"per Mac — not shared";
+  const pooled=isNV||d.cluster;
+  $("dsRam").textContent=pooled?fmtGB(d.ram*S.n):fmtGB(d.ram);
+  $("dsRamS").textContent=pooled?(S.n>1?"pooled across "+S.n+" units":"in one box"):"per Mac — not shared";
   $("dsBw").textContent=fmt(d.bw,0)+" GB/s";
   $("dsTf").textContent=fmt(d.tflops,0)+" TF";
   $("dsPow").textContent=fmt(d.watts*S.n,0)+" W";

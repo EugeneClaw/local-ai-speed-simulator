@@ -46,7 +46,9 @@ The engine is calibrated against **published real-world benchmarks** with typica
 | 2× DGX Spark + DSv4-Flash Q4 + MTP | 57.1 t/s | ~55 t/s ✓ |
 | Mac Studio M3 Ultra 512GB + GLM-5.2 Q4 | 14.6 t/s | ~17 t/s (Q4 GGUF bpw ≈ 4.5) |
 
-**The hard part of LLM inference is the AGENTIC WALL** — for agentic workloads, the prompt (system prompt, AGENTS.md, tool definitions, accumulated context) is 10K–60K tokens before the model writes a word. This dominates total time. The simulator makes this visible: change the workload from "casual chat" to "autonomous agent" and watch prefill time explode.
+**The hard part of LLM inference is the AGENTIC WALL** — for agentic workloads, the prompt (system prompt, AGENTS.md, tool definitions, accumulated context) is 10K–60K tokens before the model writes a word. This dominates total time. The simulator makes this visible: change the workload from "casual chat" to "autonomous agent" and watch prefill time explode. The wall's wording scales with what your hardware actually delivers — on enough compute it correctly reports that the wall has collapsed instead of dramatising a few seconds.
+
+**Speeds are peak; typical is lower.** All displayed token speeds are **peak** (best-effort, unloaded, tuned setup). Real-world runs land roughly **40–70% of that** — contention, thermals, serving overhead and drafter acceptance variance all bite — and the rail shows that "typical ≈ X–Y" band under the headline. The same framing applies to prefill/TTFT: treat times as best-case-at-peak.
 
 **Conversation memory is now MLA-accurate.** DeepSeek/Kimi-style MLA models keep a small per-layer latent KV cache (≈ L × 576 × 2 bytes/token — one shared latent + rope, not heads×dims): DSv4-Flash at 131K context uses ~9 GB — so the full agentic workload genuinely fits one Spark at IQ2, and long contexts stop falsely overflowing. (Kimi K3/K2.6 are modeled as MLA too. Non-MLA models keep the GQA formula.)
 

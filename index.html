@@ -171,6 +171,7 @@ details.adv summary .sub{margin-left:auto;font-family:var(--mono);font-size:10.5
 .bm-value{font-family:var(--mono);font-size:clamp(44px,5vw,58px);font-weight:700;line-height:1.05;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin-top:4px}
 .bm-unit{font-size:15px;color:var(--tx2);font-weight:400;margin-left:8px;letter-spacing:0}
 .bm-sub{font-family:var(--mono);font-size:12px;color:var(--tx2);margin-top:2px}
+.bm-range{font-family:var(--mono);font-size:10.5px;color:var(--tx3);margin-top:2px;letter-spacing:.02em}
 .pace-wrap{margin:14px 0 4px}
 .pace-track{position:relative;height:6px;background:var(--bg2);border:1px solid var(--line);border-radius:4px;margin-bottom:6px}
 .pace-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--acc),color-mix(in srgb,var(--acc) 55%,#fff 0%));border-radius:4px;transition:width .5s ease;min-width:3px}
@@ -599,6 +600,7 @@ Calibrated against published real-world measurements; typical accuracy ±15%.</d
       <div class="bm-label">Writing speed</div>
       <div class="bm-value"><span id="rWps">—</span><span class="bm-unit">words / sec</span></div>
       <div class="bm-sub" id="rTps">—</div>
+      <div class="bm-range" id="rTpsRange"></div>
       <div class="pace-wrap">
         <div class="pace-track">
           <div class="pace-fill" id="paceFill" style="width:3%"></div>
@@ -623,7 +625,7 @@ Calibrated against published real-world measurements; typical accuracy ±15%.</d
       </div>
 
       <div class="callout" id="agentCallout">
-        <div class="c-t">⚠ THE AGENTIC WALL</div>
+        <div class="c-t" id="agentWallTitle">⚠ THE AGENTIC WALL</div>
         <div class="c-b" id="agentText"></div>
       </div>
 
@@ -793,6 +795,8 @@ const ELECTRICITY={
 /* ==================== STATE ==================== */
 /* typical real-world config per machine: a DGX Spark ships with MTP + vLLM enabled */
 const PRESETS={dgx:{mtp:true,vllm:true}}, DEF_PRESET={mtp:false,vllm:false};
+// displayed speeds are PEAK; prose shows the realistic typical band as a fraction of peak
+const PEAK_LO=.4, PEAK_HI=.7;
 let hashPinned={mtp:false,vllm:false,pt:false,gt:false,cx:false}; // true when a share URL explicitly set a value
 let fitNote=""; // set by ensureFitQuant() when it auto-selects a fitting quant
 const S={use:"agent",harness:"typical",model:"dsv4",quant:"q4",dev:"dgx",n:1,variant:0,
@@ -925,29 +929,40 @@ function renderAll(){
       $("verifiedText").textContent="Estimate: the 1× Spark measurement (~32 t/s) uses MTP without vLLM — flip vLLM off to compare directly.";
     }
   }
-  /* headline */
+  /* headline — peak speed + realistic typical range */
   $("rWps").textContent=fmt(R.wps,1);
-  $("rTps").textContent="= "+fmt(R.decode,1)+" tokens/sec";
+  $("rTps").textContent="= "+fmt(R.decode,1)+" tok/s peak";
+  $("rTpsRange").textContent="typical ≈ "+fmt(R.decode*PEAK_LO,1)+"–"+fmt(R.decode*PEAK_HI,1)+" tok/s ("+Math.round(PEAK_LO*100)+"–"+Math.round(PEAK_HI*100)+"% of peak — contention, thermals, setup)";
   const pct=Math.min(100,Math.log(1+R.wps)/Math.log(1+150)*100);
   $("paceFill").style.width=Math.max(2,pct)+"%";
   $("paceHuman").style.left=(Math.log(5)/Math.log(151)*100)+"%";
   const ratio=R.wps/4;
   $("paceX").textContent=ratio>=1?fmt(ratio,1)+"× your reading speed":"slower than reading";
-  $("rPaceNote").textContent=R.wps>=25?"Faster than anyone can read — it will feel instant.":
-    R.wps>=8?"Comfortably faster than you read. It'll feel alive.":
-    R.wps>=3?"About reading pace. Usable, but you'll watch it type.":
-    R.wps>=1?"Slow. Fine for background jobs, frustrating live.":"Painfully slow for interactive use.";
+  $("rPaceNote").textContent="At peak: "+(R.wps>=25?"faster than anyone can read — it will feel instant.":
+    R.wps>=8?"comfortably faster than you read. It'll feel alive.":
+    R.wps>=3?"about reading pace. Usable, but you'll watch it type.":
+    R.wps>=1?"slow. Fine for background jobs, frustrating live.":"painfully slow for interactive use.");
   /* ttft */
   $("rTtft").textContent=fmtTime(R.ttft);
   const[vt,vc]=ttftVerdict(R.ttft);
   $("rTtftChip").textContent=vt;$("rTtftChip").className="mp-c "+vc;
   $("rFull").textContent=fmtTime(R.ttft+R.genTime);
-  /* agentic wall */
+  /* agentic wall — message scales with what the hardware actually delivers */
   const ac=$("agentCallout");
   if(S.prompt>=20000){
     ac.classList.add("show");
-    const steps=20,total=steps*(R.ttft+R.genTime);
-    let t="Every agent step re-reads ~"+fmtTok(S.prompt)+" tokens before it can act — that's "+fmtTime(R.ttft)+" of pure thinking, every step. A "+steps+"-step task ≈ "+fmtTime(total)+" of waiting.";
+    const steps=20,total=steps*(R.ttft+R.genTime),read=fmtTime(R.ttft);
+    let t;
+    if(R.ttft<5){
+      $("agentWallTitle").textContent="The agentic wall — mostly gone on this hardware";
+      t="It still re-reads ~"+fmtTok(S.prompt)+" tokens every step, but on this machine that's only "+read+" — not a wall. A "+steps+"-step task ≈ "+fmtTime(total)+", mostly spent writing the reply.";
+    }else if(R.ttft<15){
+      $("agentWallTitle").textContent="⚠ The agentic wall";
+      t="Every agent step re-reads ~"+fmtTok(S.prompt)+" tokens before it can act — that's "+read+" of pure thinking, every step. Noticeable but not crippling: a "+steps+"-step task ≈ "+fmtTime(total)+" of waiting.";
+    }else{
+      $("agentWallTitle").textContent="⚠ THE AGENTIC WALL";
+      t="Every agent step re-reads ~"+fmtTok(S.prompt)+" tokens before it can act — that's "+read+" of pure thinking, every step. A "+steps+"-step task ≈ "+fmtTime(total)+" of waiting.";
+    }
     if(S.pfx)t+=" (Prefix caching is already cutting this ~70%.)";
     else t+=" Prefix caching (in Advanced) could cut the reading ~70%.";
     $("agentText").textContent=t;
@@ -988,8 +1003,8 @@ function renderAll(){
   $("sc3t").textContent=fmtTime(60000*pfxF/pre+800/dec);
   $("sc4t").textContent=fmtTime(30000*pfxF/pre+600/dec);
   /* raw */
-  $("rdDec").textContent=fmt(R.decode,1)+" t/s";
-  $("rdPre").textContent=fmt(R.prefill,0)+" t/s";
+  $("rdDec").textContent=fmt(R.decode,1)+" t/s peak";
+  $("rdPre").textContent=fmt(R.prefill,0)+" t/s peak";
   $("rdW").textContent=fmtGB(R.weights);
   $("rdKv").textContent=fmtGB(R.kv);
   $("rdAct").textContent=fmt(R.activeGB,1)+" GB";

@@ -165,6 +165,7 @@ details.adv summary .sub{margin-left:auto;font-family:var(--mono);font-size:10.5
 .rail-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:13px 18px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--tx3)}
 .rail-body{padding:18px}
 .badge-verified{display:none;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--good);background:var(--good-soft);border:1px solid color-mix(in srgb,var(--good) 35%,transparent);border-radius:99px;padding:5px 11px;margin-bottom:14px}
+.badge-verified.warn{color:var(--warn);background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
 .badge-verified.show{display:flex}
 .bm-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--tx3)}
 .bm-value{font-family:var(--mono);font-size:clamp(44px,5vw,58px);font-weight:700;line-height:1.05;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin-top:4px}
@@ -387,7 +388,7 @@ footer{border-top:1px solid var(--line);padding:26px 22px 40px;text-align:center
 
       <p class="field-label" style="margin-top:20px">Compression ("quantization")</p>
       <div class="quant-grid" id="quantGrid"></div>
-      <div class="note-box"><b>Q4 is the sweet spot</b> — near-lossless quality at half the size. A smarter model that is quantised is usually better than a smaller full precision model. Very low quants (Q1 and 2 usually) squeeze much smaller and can be slower, but chosen well can still be great.</div>
+      <div class="note-box" id="quantAdvice"></div>
       <div class="fit-line"><span class="dot g" id="quantDot"></span><span id="quantFit" class="mono"></span></div>
       <div class="note-box" id="quantAutoNote" style="display:none"></div>
     </div>
@@ -719,9 +720,9 @@ const MODELS={
     desc:"Dense and heavy, with a large attention memory."},
   minimax3:{name:"MiniMax M3",totalB:456,activeB:46,moe:true,L:80,H:8,D:128,est:true,
     desc:"New release — architecture figures are best estimates."},
-  kimik3:{name:"Kimi K3",totalB:2812,activeB:52,moe:true,L:128,H:16,D:256,est:true,
+  kimik3:{name:"Kimi K3",totalB:2812,activeB:52,moe:true,L:128,H:16,D:256,mla:true,est:true,
     desc:"The largest open model ever — needs a small datacenter's worth of memory. Estimated specs."},
-  kimik26:{name:"Kimi K2.6",totalB:1280,activeB:32,moe:true,L:96,H:16,D:256,est:true,
+  kimik26:{name:"Kimi K2.6",totalB:1280,activeB:32,moe:true,L:96,H:16,D:256,mla:true,est:true,
     desc:"Huge but sparse — surprisingly quick once you can fit it. Estimated specs."},
   custom:{name:"Custom model",custom:true,desc:"Define your own architecture below."}
 };
@@ -792,10 +793,10 @@ const ELECTRICITY={
 /* ==================== STATE ==================== */
 /* typical real-world config per machine: a DGX Spark ships with MTP + vLLM enabled */
 const PRESETS={dgx:{mtp:true,vllm:true}}, DEF_PRESET={mtp:false,vllm:false};
-let hashPinned={mtp:false,vllm:false}; // true when a share URL explicitly set the toggle
+let hashPinned={mtp:false,vllm:false,pt:false,gt:false,cx:false}; // true when a share URL explicitly set a value
 let fitNote=""; // set by ensureFitQuant() when it auto-selects a fitting quant
 const S={use:"agent",harness:"typical",model:"dsv4",quant:"q4",dev:"dgx",n:1,variant:0,
-  prompt:2300,gen:200,ctx:4096,mtp:false,vllm:false,kvq4:false,pfx:false,conc:1,
+  prompt:23000,gen:1000,ctx:131072,mtp:false,vllm:false,kvq4:false,pfx:false,conc:1,
   cm:{name:"My Model",totalB:70,activeB:70,L:80,H:8,D:128,mla:false},
   cd:{name:"My Rig",ram:64,bw:500,tflops:100,tdp:300,vendor:"nvidia",fp4:false}};
 let R=null;
@@ -830,7 +831,9 @@ function calc(){
   const activeGB=Math.max(.5,m.activeB*bpw/8);
   const ctx=S.ctx;
   const bpe=S.kvq4?.5:2;
-  let kv=2*m.L*m.H*m.D*ctx*bpe/1e9; if(m.mla)kv*=.3;
+  let kv;
+  if(m.mla)kv=m.L*576*ctx*bpe/1e9;   // MLA (DeepSeek/Kimi-style): one shared latent per layer (~512) + rope (~64) — NOT heads×dims
+  else kv=2*m.L*m.H*m.D*ctx*bpe/1e9; // GQA/dense: layers × KV heads × head-dim × 2 (K+V)
   // NVIDIA pools memory across units; M5 Max/Ultra Studios cluster over Thunderbolt 5 + RDMA
   const canPool=isNV||d.cluster;
   const tpEff=canPool?(d.tpEff[n]||1):1;
@@ -841,7 +844,7 @@ function calc(){
   let qb=1; if(q==="q4"&&d.fp4)qb=1.2; if(q==="iq1"||q==="iq2"||q==="iq3")qb=.45;
   const mtpF=S.mtp?2:1, vllmF=(S.vllm&&isNV)?1.5:1;
   const hwD=isNV?.5:.4, hwP=isNV?.45:.3;
-  const deg=ctx<=32768?1:Math.max(.3,1-.15*Math.log2(ctx/32768));
+  const deg=ctx<=32768?1:Math.max(.12,1-.42*Math.log2(ctx/32768)); // prefill: long prompts are attention/memory bound — steep degradation, calibrated so DSv4 IQ2 @127K on 1× Spark lands near the reproduced ~1,000 tok/s
   const ddeg=ctx<=32768?1:Math.max(.5,1-.075*Math.log2(ctx/32768));
   let decode=(aggBW/activeGB)*hwD*qb*mtpF*vllmF*ddeg;
   let prefill=(aggTF*1000/(2*m.activeB))*hwP*qb*vllmF*deg;
@@ -851,7 +854,8 @@ function calc(){
   if(offloaded){decode*=.45;prefill*=.45;}
   const freeRAM=Math.max(0,usable-weights);
   const maxStreams=kv>0?Math.floor(freeRAM/kv):64;
-  const perReq=decode*Math.max(.2,1-.005*(S.conc-1));
+  const AGG_CAP=2; // real-world batched serving: aggregate decode plateaus ~2× a single request (per Spark reproductions)
+  const perReq=decode*Math.min(S.conc,AGG_CAP)/Math.max(1,S.conc);
   const effPrompt=S.pfx?S.prompt*.3:S.prompt;
   const ttft=effPrompt/Math.max(1e-6,prefill);
   const genTime=S.gen/Math.max(1e-6,decode);
@@ -895,13 +899,32 @@ function renderAll(){
   qd.className="dot "+(R.kvFit?"g":R.weightsFit?"a":"r");
   const qan=$("quantAutoNote");
   if(qan){qan.style.display=fitNote?"block":"none";qan.textContent=fitNote;}
+  /* quant advice — context-aware (don't tell someone on IQ2 to "try Q4" when Q4 can't fit) */
+  const qa=$("quantAdvice");
+  if(qa){
+    const high=["q8","q6","q5","q4"];
+    if(high.includes(S.quant)){
+      qa.innerHTML="<b>Q4 is the sweet spot</b> — near-lossless quality at roughly half the size. A smarter model that is quantised usually beats a smaller full-precision one.";
+    }else{
+      qa.innerHTML=fitNote
+        ? "<b>"+QUANTS[S.quant].label+" auto-selected because it's what fits.</b> Raising the quant (e.g. Q4) would overflow this machine — stay here, or go lower to compress more."
+        : "<b>Low-quant build ("+QUANTS[S.quant].label+", quality "+QUANTS[S.quant].q+").</b> Q4 is the quality sweet spot when memory allows — add units or memory and you can move back up.";
+    }
+  }
   /* rail config */
   $("railConf").textContent=R.n+"× "+R.d.name+" · "+QUANTS[S.quant].label;
   /* verified */
   const vb=verifiedFor();
-  if(vb){$("verifiedBadge").classList.add("show");
+  if(vb){$("verifiedBadge").classList.remove("warn");
+    $("verifiedBadge").classList.add("show");
     $("verifiedText").textContent=vb.match?("VERIFIED — "+vb.txt+", we calculate "+fmt(R.decode,1)):("Benchmark exists: "+vb.txt+" (at shorter context)");
-  }else $("verifiedBadge").classList.remove("show");
+  }else{
+    $("verifiedBadge").classList.remove("show");
+    if(S.dev==="dgx"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2"&&S.mtp&&S.vllm){
+      $("verifiedBadge").classList.add("show","warn");
+      $("verifiedText").textContent="Estimate: the 1× Spark measurement (~32 t/s) uses MTP without vLLM — flip vLLM off to compare directly.";
+    }
+  }
   /* headline */
   $("rWps").textContent=fmt(R.wps,1);
   $("rTps").textContent="= "+fmt(R.decode,1)+" tokens/sec";
@@ -956,7 +979,7 @@ function renderAll(){
   $("legFree").textContent="usable "+fmtGB(R.usable)+((R.isNV||R.d.cluster)&&R.n>1?" (pooled)":"");
   const mn=$("memNote");
   if(!R.weightsFit){mn.className="mem-note r";mn.textContent="✗ Model doesn't fit — layers would spill to the CPU, which is why the speed above is heavily penalized. Add units, choose more memory, or compress harder.";}
-  else if(!R.kvFit){mn.className="mem-note a";mn.textContent="△ Model fits, but the conversation memory at this context length overflows. Shorten the context or turn on KV Q4 in Advanced.";}
+  else if(!R.kvFit){mn.className="mem-note a";mn.textContent=S.kvq4?"△ Conversation memory still overflows at this context — shorten the context or add memory.":"△ Model fits, but the conversation memory at this context length overflows. Shorten the context or turn on KV Q4 in Advanced.";}
   else{mn.className="mem-note g";mn.textContent="✓ Fits comfortably — "+fmtGB(R.freeRAM-R.kv)+" to spare.";}
   /* scenarios */
   const pre=R.prefill,dec=R.decode,pfxF=S.pfx?.3:1;
@@ -1292,6 +1315,15 @@ function buildSimQuickSwap(){
 }
 
 /* ==================== HASH / SHARE ==================== */
+// Make the displayed workload's real prompt/context actually drive the calc at load
+// (fixes the "fits on load, overflows after clicking the same workload" divergence).
+function applyWorkload(){
+  if(S.use==="custom")return;
+  const u=USES[S.use];if(!u)return;
+  if(!hashPinned.pt)S.prompt=effectivePrompt(S.use);
+  if(!hashPinned.gt)S.gen=u.gen;
+  if(!hashPinned.cx)S.ctx=u.ctx;
+}
 // If the current quant can't fit the machine, auto-select the best-quality quant that does
 // (models with measured per-quant sizes only — e.g. DSv4-Flash fits 1x Spark at IQ2 ≈ 97GB).
 function ensureFitQuant(){
@@ -1336,11 +1368,11 @@ function applyHash(){
   if(MODELS[g("m")])S.model=g("m");
   if(QUANTS[g("q")])S.quant=g("q");
   if(DEVICES[g("d")])S.dev=g("d");
-  const nn=parseInt(g("n"));if([1,2,3,4,8].includes(nn))S.n=nn;
+  const nn=parseInt(g("n"));if(nn>=1&&nn<=8)S.n=nn;
   const vv=parseInt(g("v"));if(vv>=0)S.variant=vv;
-  if(num(g("pt"),0))S.prompt=Math.min(2e6,num(g("pt"),S.prompt));
-  if(num(g("gt"),0))S.gen=Math.min(1e5,num(g("gt"),S.gen));
-  if(num(g("cx"),0))S.ctx=Math.min(2e6,Math.max(1024,num(g("cx"),S.ctx)));
+  hashPinned.pt=g("pt")!=null;if(hashPinned.pt)S.prompt=Math.min(2e6,num(g("pt"),S.prompt));
+  hashPinned.gt=g("gt")!=null;if(hashPinned.gt)S.gen=Math.min(1e5,num(g("gt"),S.gen));
+  hashPinned.cx=g("cx")!=null;if(hashPinned.cx)S.ctx=Math.min(2e6,Math.max(1024,num(g("cx"),S.ctx)));
   hashPinned.mtp=g("mtp")!=null;if(hashPinned.mtp)S.mtp=g("mtp")==="1";
   hashPinned.vllm=g("vl")!=null;if(hashPinned.vllm)S.vllm=g("vl")==="1";
   S.kvq4=g("kv")==="1";S.pfx=g("pfx")==="1";
@@ -1411,6 +1443,7 @@ function init(){
     else done();
   });
   applyHash();
+  applyWorkload();
   ensureFitQuant();
   applyDevicePreset(false);
   syncControls();

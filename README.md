@@ -42,14 +42,21 @@ The engine is calibrated against **published real-world benchmarks** with typica
 |---|---|---|
 | 1× DGX Spark + DSv4-Flash IQ2 | 18.9 t/s | 19.1 t/s ✓ |
 | 1× DGX Spark + DSv4-Flash IQ2 + MTP | ~32 t/s | 23–37 t/s single-request (independent [reproduction on one Spark](https://github.com/emiluzelac/deepseek-v4-flash-0731-on-one-dgx-spark), drafter on) |
+| 1× DGX Spark + DSv4-Flash IQ2, 127K ctx | ~1,250 tok/s prefill | ~1,000 tok/s (same reproduction) |
 | 2× DGX Spark + DSv4-Flash Q4 + MTP | 57.1 t/s | ~55 t/s ✓ |
 | Mac Studio M3 Ultra 512GB + GLM-5.2 Q4 | 14.6 t/s | ~17 t/s (Q4 GGUF bpw ≈ 4.5) |
 
 **The hard part of LLM inference is the AGENTIC WALL** — for agentic workloads, the prompt (system prompt, AGENTS.md, tool definitions, accumulated context) is 10K–60K tokens before the model writes a word. This dominates total time. The simulator makes this visible: change the workload from "casual chat" to "autonomous agent" and watch prefill time explode.
 
+**Conversation memory is now MLA-accurate.** DeepSeek/Kimi-style MLA models keep a small per-layer latent KV cache (≈ L × 576 × 2 bytes/token — one shared latent + rope, not heads×dims): DSv4-Flash at 131K context uses ~9 GB — so the full agentic workload genuinely fits one Spark at IQ2, and long contexts stop falsely overflowing. (Kimi K3/K2.6 are modeled as MLA too. Non-MLA models keep the GQA formula.)
+
 **DSv4-Flash fits a single Spark — the simulator now shows it.** The default **Q4** build (155 GB) genuinely needs two Sparks; the well-known one-Spark deployment is the ~88 GiB optimized build (≈ **IQ2**, 97 GB — the same ballpark as an independent [reproduction](https://github.com/emiluzelac/deepseek-v4-flash-0731-on-one-dgx-spark) that measured ~1,000 tok/s prefill and 23–37 tok/s single-request decode on one Spark). The tool now **auto-selects the best quant that fits your machine** (with a note saying so) instead of just showing "doesn't fit", and the fit line tells you which quant would fit when you're on one that doesn't.
 
 **Machine presets.** Each device loads its typical real-world serving config: a **DGX Spark defaults to MTP + vLLM enabled** (the standard stack on it), so comparisons show configured boxes, not bare defaults — the 18.9 t/s row above is the bare no-MTP baseline. Switching device reloads the preset; the Advanced knobs let you tweak from there. One honest caveat: the verified benchmark rows are **measured configs (MTP without vLLM)** — turning vLLM on stacks an extra ~1.5× on top, so the DGX preset's numbers sit at the optimistic end of the real-world range.
+
+**Long-context prefill is degraded to reality.** The raw compute ceiling for prefill is optimistic at agent contexts; the model now degrades prefill steeply past 32K so a 1× Spark reads at ~1,000–1,500 tok/s at 127K (matching the reproduction) — agentic "thinking time" is displayed truthfully (~20 s to ingest a 23K agent prompt).
+
+**Concurrency shares real bandwidth.** Simultaneous users now split decode realistically (aggregate throughput plateaus near ~2× a single request, per batched-serving reproductions), instead of each user keeping nearly full speed. Memory (KV cache) still sets the hard cap on how many fit.
 
 **Multi-unit scaling favours even counts.** Tensor parallelism prefers 2/4/6/8 nodes; odd counts (3/5/7) land between the even tiers — they buy memory pool size and concurrency (expert parallelism), with little per-request speed over the even count below them.
 

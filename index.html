@@ -389,6 +389,7 @@ footer{border-top:1px solid var(--line);padding:26px 22px 40px;text-align:center
       <div class="quant-grid" id="quantGrid"></div>
       <div class="note-box"><b>Q4 is the sweet spot</b> — near-lossless quality at half the size. A smarter model that is quantised is usually better than a smaller full precision model. Very low quants (Q1 and 2 usually) squeeze much smaller and can be slower, but chosen well can still be great.</div>
       <div class="fit-line"><span class="dot g" id="quantDot"></span><span id="quantFit" class="mono"></span></div>
+      <div class="note-box" id="quantAutoNote" style="display:none"></div>
     </div>
 
     <!-- STEP 3: Choose a machine -->
@@ -692,7 +693,7 @@ const QUANTS={
 };
 const MODELS={
   dsv4:{name:"DeepSeek-V4-Flash-0731",totalB:284,activeB:13,moe:true,L:61,H:128,D:192,mla:true,
-    sizeOverride:{fp8:167,q4:155,iq2:97,iq1:82.5},
+    sizeOverride:{fp8:167,q4:155,iq3:112,iq2:97,iq1:82.5},
     desc:"The local favorite. Only 13B parameters fire per word, so it flies on high-bandwidth machines — but its memory of long conversations is large."},
   glm52:{name:"GLM-5.2",totalB:744,activeB:40,moe:true,L:96,H:16,D:256,
     desc:"Frontier-class agentic model. Brilliant at multi-step work, but needs serious memory to live in."},
@@ -792,6 +793,7 @@ const ELECTRICITY={
 /* typical real-world config per machine: a DGX Spark ships with MTP + vLLM enabled */
 const PRESETS={dgx:{mtp:true,vllm:true}}, DEF_PRESET={mtp:false,vllm:false};
 let hashPinned={mtp:false,vllm:false}; // true when a share URL explicitly set the toggle
+let fitNote=""; // set by ensureFitQuant() when it auto-selects a fitting quant
 const S={use:"agent",harness:"typical",model:"dsv4",quant:"q4",dev:"dgx",n:1,variant:0,
   prompt:2300,gen:200,ctx:4096,mtp:false,vllm:false,kvq4:false,pfx:false,conc:1,
   cm:{name:"My Model",totalB:70,activeB:70,L:80,H:8,D:128,mla:false},
@@ -863,8 +865,9 @@ function calc(){
 function verifiedFor(){
   const c=[
     {t:19.1,ok:()=>S.dev==="dgx"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2"&&!S.mtp&&!S.vllm,txt:"measured 19.1 t/s on 1× DGX Spark (bare — no MTP/vLLM)"},
-    {t:55,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.mtp&&S.vllm,txt:"measured 55 t/s on 2× DGX Spark"},
-    {t:40,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.ctx>=500000&&S.mtp&&S.vllm,txt:"measured 40 t/s at 1M context on 2× DGX Spark"},
+    {t:32,ok:()=>S.dev==="dgx"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2"&&S.mtp&&!S.vllm,txt:"single-request ~23–37 t/s on 1× Spark (emiluzelac DSv4-on-1-Spark reproduction, drafter on)"},
+    {t:55,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.mtp&&!S.vllm&&S.ctx>=150000,txt:"measured ~55 t/s on 2× DGX Spark (Q4 + MTP, long context)"},
+    {t:40,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.mtp&&!S.vllm&&S.ctx>=1200000,txt:"measured 40 t/s at ~1.3M+ context on 2× DGX Spark (Q4 + MTP)"},
     {t:17,ok:()=>S.dev==="m3ultra"&&getDevice().ram===512&&S.model==="glm52"&&S.quant==="q4",txt:"measured 17 t/s on M3 Ultra 512GB"},
     {t:56,ok:()=>S.dev==="rtx5090"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2",txt:"measured 56 t/s on RTX 5090 (CPU-offloaded)"}
   ];
@@ -877,10 +880,21 @@ function ttftVerdict(t){if(t<1.5)return["Instant","g"];if(t<5)return["Snappy","g
 
 function renderAll(){
   R=calc();
+  /* keep quant UI in sync after an auto-fit selection */
+  const qg=$("quantGrid");if(qg)qg.querySelectorAll(".q-btn").forEach(x=>x.classList.toggle("on",x.dataset.q===S.quant));
+  const sq=$("simQuant");if(sq)sq.value=S.quant;
   /* quant fit line */
   const qf=$("quantFit"),qd=$("quantDot");
-  qf.textContent="Model size at "+QUANTS[S.quant].label+": "+fmtGB(R.weights)+" of "+fmtGB(R.usable)+" usable";
+  let qftxt="Model size at "+QUANTS[S.quant].label+": "+fmtGB(R.weights)+" of "+fmtGB(R.usable)+" usable";
+  if(!R.weightsFit){
+    const m=getModel(),w=q=>m.sizeOverride&&m.sizeOverride[q]!=null?m.sizeOverride[q]:m.totalB*QUANTS[q].bpw/8;
+    const fq=Object.keys(QUANTS).find(q=>w(q)<=R.usable);
+    if(fq&&fq!==S.quant)qftxt+=" → fits at "+QUANTS[fq].label+" ("+fmtGB(w(fq))+")";
+  }
+  qf.textContent=qftxt;
   qd.className="dot "+(R.kvFit?"g":R.weightsFit?"a":"r");
+  const qan=$("quantAutoNote");
+  if(qan){qan.style.display=fitNote?"block":"none";qan.textContent=fitNote;}
   /* rail config */
   $("railConf").textContent=R.n+"× "+R.d.name+" · "+QUANTS[S.quant].label;
   /* verified */
@@ -1071,7 +1085,7 @@ function buildModelSel(){
     s.appendChild(og);
   });
   s.value=S.model;
-  s.addEventListener("change",()=>{S.model=s.value;renderModelMeta();renderAll();});
+  s.addEventListener("change",()=>{S.model=s.value;ensureFitQuant();renderModelMeta();renderAll();});
   renderModelMeta();
 }
 function renderModelMeta(){
@@ -1107,7 +1121,7 @@ function buildDevSel(){
     s.appendChild(og);
   });
   s.value=S.dev;
-  s.addEventListener("change",()=>{S.dev=s.value;S.n=1;S.variant=(DEVICES[s.value].variants||[{ }]).length-1;applyDevicePreset(true);buildVariantSel();buildCountRow();renderDevMeta();renderAll();});
+  s.addEventListener("change",()=>{S.dev=s.value;S.n=1;S.variant=(DEVICES[s.value].variants||[{ }]).length-1;applyDevicePreset(true);ensureFitQuant();buildVariantSel();buildCountRow();renderDevMeta();renderAll();});
   buildVariantSel();buildCountRow();renderDevMeta();
 }
 function buildVariantSel(){
@@ -1125,7 +1139,7 @@ function buildCountRow(){
   const counts=isApple?[1,2,3,4]:[1,2,3,4,5,6,7,8];
   counts.forEach(n=>{
     const b=el("button","n-btn"+(S.n===n?" on":""),n+"×");
-    b.addEventListener("click",()=>{S.n=n;row.querySelectorAll(".n-btn").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderDevMeta();renderAll();});
+    b.addEventListener("click",()=>{S.n=n;ensureFitQuant();row.querySelectorAll(".n-btn").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderDevMeta();renderAll();});
     row.appendChild(b);
   });
   if(isApple&&S.n>4){S.n=4;buildCountRow();}
@@ -1265,19 +1279,37 @@ function buildSimQuickSwap(){
     cr.textContent="";const d=getDevice();const isApple=d.vendor==="apple";
     const counts=isApple?[1,2,3,4]:[1,2,3,4,5,6,7,8];
     counts.forEach(n=>{const b=el("button","n-btn"+(S.n===n?" on":""),n+"×");
-      b.addEventListener("click",()=>{S.n=n;cr.querySelectorAll(".n-btn").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderAll();});
+      b.addEventListener("click",()=>{S.n=n;ensureFitQuant();cr.querySelectorAll(".n-btn").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderAll();});
       cr.appendChild(b);});
   }
   syncSimVar();syncSimCount();
-  ds.addEventListener("change",()=>{S.dev=ds.value;S.variant=0;applyDevicePreset(true);syncSimVar();syncSimCount();renderAll();});
-  ms.addEventListener("change",()=>{S.model=ms.value;renderAll();});
+  ds.addEventListener("change",()=>{S.dev=ds.value;S.variant=0;applyDevicePreset(true);ensureFitQuant();syncSimVar();syncSimCount();renderAll();});
+  ms.addEventListener("change",()=>{S.model=ms.value;ensureFitQuant();renderAll();});
   qs.addEventListener("change",()=>{S.quant=qs.value;renderAll();});
-  vs.addEventListener("change",()=>{S.variant=parseInt(vs.value)||0;renderAll();});
+  vs.addEventListener("change",()=>{S.variant=parseInt(vs.value)||0;ensureFitQuant();renderAll();});
   $("simMtp").addEventListener("change",e=>{S.mtp=e.target.checked;renderAll();});
   $("simVllm").addEventListener("change",e=>{S.vllm=e.target.checked;renderAll();});
 }
 
 /* ==================== HASH / SHARE ==================== */
+// If the current quant can't fit the machine, auto-select the best-quality quant that does
+// (models with measured per-quant sizes only — e.g. DSv4-Flash fits 1x Spark at IQ2 ≈ 97GB).
+function ensureFitQuant(){
+  const m=getModel(),d=getDevice();
+  fitNote="";
+  if(m.custom||d.custom||!m.sizeOverride)return;
+  const canPool=d.vendor==="nvidia"||d.cluster;
+  const usable=.85*(canPool?d.ram*S.n:d.ram);
+  const w=q=>m.sizeOverride[q]!=null?m.sizeOverride[q]:m.totalB*QUANTS[q].bpw/8;
+  if(w(S.quant)<=usable)return;                 // already fits
+  for(const q of Object.keys(QUANTS)){          // best quality -> smallest
+    if(w(q)<=usable){
+      fitNote=m.name+" doesn't fit "+S.n+"× "+d.name+" at "+QUANTS[S.quant].label+" ("+fmtGB(w(S.quant))+") — auto-selected "+QUANTS[q].label+" ("+fmtGB(w(q))+").";
+      S.quant=q;
+      return;
+    }
+  }
+}
 function applyDevicePreset(force){
   const p=PRESETS[S.dev]||DEF_PRESET;
   if(force||!hashPinned.mtp)S.mtp=p.mtp;
@@ -1345,7 +1377,7 @@ function init(){
   const upd=()=>{S.prompt=Math.round(Math.pow(2,parseFloat($("wPrompt").value)));S.gen=Math.round(Math.pow(2,parseFloat($("wGen").value)));S.ctx=Math.round(Math.pow(2,parseFloat($("wCtx").value)));syncCustomSliders();renderAll();};
   ["wPrompt","wGen","wCtx"].forEach(id=>$(id).addEventListener("input",upd));
   /* variant */
-  $("devVar").addEventListener("change",e=>{S.variant=parseInt(e.target.value)||0;renderDevMeta();renderAll();});
+  $("devVar").addEventListener("change",e=>{S.variant=parseInt(e.target.value)||0;ensureFitQuant();renderDevMeta();renderAll();});
   /* advanced */
   $("optMtp").addEventListener("change",e=>{S.mtp=e.target.checked;renderAll();});
   $("optVllm").addEventListener("change",e=>{S.vllm=e.target.checked;renderAll();});
@@ -1379,6 +1411,7 @@ function init(){
     else done();
   });
   applyHash();
+  ensureFitQuant();
   applyDevicePreset(false);
   syncControls();
   renderAll();

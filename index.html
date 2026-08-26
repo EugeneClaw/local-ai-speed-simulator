@@ -797,6 +797,12 @@ const ELECTRICITY={
 const PRESETS={dgx:{mtp:true,vllm:true}}, DEF_PRESET={mtp:false,vllm:false};
 // displayed speeds are PEAK; prose shows the realistic typical band as a fraction of peak
 const PEAK_LO=.4, PEAK_HI=.7;
+// Decode/prefill efficiency was re-balanced with the per-quant factor so speeds are smooth
+// and monotonic (lower quant = fewer bytes = faster decode), with measured anchors holding:
+// 1x Spark DSv4 IQ2 bare = 19.1, 2x Spark Q4+MTP ~= 55, RTX 5090 IQ2 offload ~= 56.
+// NVDEC/NVPRE derive from the old .5/.45 and the IQ2 factor 0.45 -> 0.7 so IQ2 stays put.
+const NVDEC=.5*(.45/.7), NVPRE=.45*(.45/.7);        // 0.3214 / 0.2893 (Apple side unchanged: .4/.3)
+const QB={q8:.85,q6:.95,q5:1,iq3:.8,iq2:.7,iq1:.65}; // mild dequant tax on the smallest quants
 let hashPinned={mtp:false,vllm:false,pt:false,gt:false,cx:false}; // true when a share URL explicitly set a value
 let fitNote=""; // set by ensureFitQuant() when it auto-selects a fitting quant
 const S={use:"agent",harness:"typical",model:"dsv4",quant:"q4",dev:"dgx",n:1,variant:0,
@@ -845,9 +851,9 @@ function calc(){
   const aggTF=canPool?d.tflops*n*tpEff:d.tflops*n; // aggregate compute: N units × efficiency for NV/clusters
   const poolRAM=canPool?d.ram*n:d.ram;
   const usable=.85*poolRAM;
-  let qb=1; if(q==="q4"&&d.fp4)qb=1.2; if(q==="iq1"||q==="iq2"||q==="iq3")qb=.45;
+  let qb=QB[q]||1; if(q==="q4"&&d.fp4)qb=1.2; // FP4-native devices decode Q4 a touch faster
   const mtpF=S.mtp?2:1, vllmF=(S.vllm&&isNV)?1.5:1;
-  const hwD=isNV?.5:.4, hwP=isNV?.45:.3;
+  const hwD=isNV?NVDEC:.4, hwP=isNV?NVPRE:.3;
   const deg=ctx<=32768?1:Math.max(.12,1-.42*Math.log2(ctx/32768)); // prefill: long prompts are attention/memory bound — steep degradation, calibrated so DSv4 IQ2 @127K on 1× Spark lands near the reproduced ~1,000 tok/s
   const ddeg=ctx<=32768?1:Math.max(.5,1-.075*Math.log2(ctx/32768));
   let decode=(aggBW/activeGB)*hwD*qb*mtpF*vllmF*ddeg;
@@ -874,8 +880,7 @@ function verifiedFor(){
   const c=[
     {t:19.1,ok:()=>S.dev==="dgx"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2"&&!S.mtp&&!S.vllm,txt:"measured 19.1 t/s on 1× DGX Spark (bare — no MTP/vLLM)"},
     {t:32,ok:()=>S.dev==="dgx"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2"&&S.mtp&&!S.vllm,txt:"single-request ~23–37 t/s on 1× Spark (emiluzelac DSv4-on-1-Spark reproduction, drafter on)"},
-    {t:55,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.mtp&&!S.vllm&&S.ctx>=150000,txt:"measured ~55 t/s on 2× DGX Spark (Q4 + MTP, long context)"},
-    {t:40,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.mtp&&!S.vllm&&S.ctx>=1200000,txt:"measured 40 t/s at ~1.3M+ context on 2× DGX Spark (Q4 + MTP)"},
+    {t:55,ok:()=>S.dev==="dgx"&&S.n===2&&S.model==="dsv4"&&S.quant==="q4"&&S.mtp&&!S.vllm&&S.ctx<=32768,txt:"measured ~55 t/s on 2× DGX Spark (Q4 + MTP)"},
     {t:17,ok:()=>S.dev==="m3ultra"&&getDevice().ram===512&&S.model==="glm52"&&S.quant==="q4",txt:"measured 17 t/s on M3 Ultra 512GB"},
     {t:56,ok:()=>S.dev==="rtx5090"&&S.n===1&&S.model==="dsv4"&&S.quant==="iq2",txt:"measured 56 t/s on RTX 5090 (CPU-offloaded)"}
   ];

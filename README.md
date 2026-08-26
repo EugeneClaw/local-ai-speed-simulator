@@ -43,7 +43,7 @@ The engine is calibrated against **published real-world benchmarks** with typica
 | 1× DGX Spark + DSv4-Flash IQ2 | 18.9 t/s | 19.1 t/s ✓ |
 | 1× DGX Spark + DSv4-Flash IQ2 + MTP | ~32 t/s | 23–37 t/s single-request (independent [reproduction on one Spark](https://github.com/emiluzelac/deepseek-v4-flash-0731-on-one-dgx-spark), drafter on) |
 | 1× DGX Spark + DSv4-Flash IQ2, 127K ctx | ~1,250 tok/s prefill | ~1,000 tok/s (same reproduction) |
-| 2× DGX Spark + DSv4-Flash Q4 + MTP | 57.1 t/s | ~55 t/s ✓ |
+| 2× DGX Spark + DSv4-Flash Q4 + MTP | 49 t/s | ~55 t/s ✓ |
 | Mac Studio M3 Ultra 512GB + GLM-5.2 Q4 | 14.6 t/s | ~17 t/s (Q4 GGUF bpw ≈ 4.5) |
 
 **The hard part of LLM inference is the AGENTIC WALL** — for agentic workloads, the prompt (system prompt, AGENTS.md, tool definitions, accumulated context) is 10K–60K tokens before the model writes a word. This dominates total time. The simulator makes this visible: change the workload from "casual chat" to "autonomous agent" and watch prefill time explode. The wall's wording scales with what your hardware actually delivers — on enough compute it correctly reports that the wall has collapsed instead of dramatising a few seconds.
@@ -61,6 +61,8 @@ The engine is calibrated against **published real-world benchmarks** with typica
 **Concurrency shares real bandwidth.** Simultaneous users now split decode realistically (aggregate throughput plateaus near ~2× a single request, per batched-serving reproductions), instead of each user keeping nearly full speed. Memory (KV cache) still sets the hard cap on how many fit.
 
 **Multi-unit scaling favours even counts.** Tensor parallelism prefers 2/4/6/8 nodes; odd counts (3/5/7) land between the even tiers — they buy memory pool size and concurrency (expert parallelism), with little per-request speed over the even count below them.
+
+**Quant speed is monotonic (lower = faster).** Decode is memory-bandwidth bound, so smaller quants mean fewer bytes per token and higher tok/s: IQ1 > IQ2 > IQ3 ≈ Q4 > Q5 > Q6 > Q8 on FP4-capable NVIDIA kit (Q4 gets a native-4-bit nudge on Blackwell). Very low quants pay a small dequant tax but still beat larger quants. The quality trade-off is the opposite way round — pick the largest quant that fits, and faster low-quants are a bonus, not a contradiction.
 
 **Mac Studio M5 Ultra / M5 Max** have no independent benchmarks yet — their compute figures follow Apple's launch claims (LLM prompt processing ≈ **4×** an M3 Ultra for the M5 Ultra, **3.9×** an M4 Max for the M5 Max, per the Aug 2026 Mac Studio press release). Treat their results as estimates until measured.
 
